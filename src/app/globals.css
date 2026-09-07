@@ -1,16 +1,103 @@
+<<<<<<< HEAD
+=======
+/* ==========================================
+   1. RESET & BAZA (Globalne)
+   ========================================== */
+>>>>>>> 1e12773
 * {
   box-sizing: border-box;
   padding: 0;
   margin: 0;
 }
 
+<<<<<<< HEAD
 body{
+=======
+body {
+>>>>>>> 1e12773
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   min-height: 100dvh;
 }
 
+<<<<<<< HEAD
+=======
+/* ==========================================
+   2. NAWIGACJA I STOPKA
+   ========================================== */
+nav {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 3000;
+}
+
+nav ul {
+  width: 100%;
+  height: 50px;
+  background-color: #4f8ff0;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+nav ul li {
+  list-style: none;
+  color: white;
+}
+
+.nav-item {
+  color: grey;
+}
+
+.nav-item.active {
+  color: white;
+}
+
+footer {
+  height: 100px;
+  background-color: #4f8ff0;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  font-size: 10px;
+}
+
+.footerLeft, .footerRight {
+  width: 50%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  text-align: center;
+  color: white;
+}
+
+footer a {
+  width: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 50px;
+}
+
+a:hover {
+  transform: scale(1.1);
+  cursor: pointer;
+  color: whitesmoke;
+}
+
+.scroll-to-top-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ==========================================
+   3. SEKCJA HEADER I GŁÓWNA (Strona Główna)
+   ========================================== */
+>>>>>>> 1e12773
 header {
   width: 100%;
   height: 100dvh;
@@ -19,18 +106,29 @@ header {
   justify-content: space-around;
   align-items: center;
   text-align: center;
+<<<<<<< HEAD
 color: white;
   /* Ciemna nakładka: rgba(0, 0, 0, 0.6) oznacza czarny kolor o kryciu 60% */
   background-image: 
     linear-gradient(rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6)), 
     url('/images/background.jpg');
     
+=======
+  color: white;
+  background-image: 
+    linear-gradient(rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6)), 
+    url('/images/background.jpg');
+>>>>>>> 1e12773
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
 
+<<<<<<< HEAD
 h1{
+=======
+h1 {
+>>>>>>> 1e12773
   font-size: 40px;
   color: #4f8ff0;
   max-width: 80%;
@@ -38,18 +136,33 @@ h1{
   height: 50%;
   margin-top: 100px;
 }
+<<<<<<< HEAD
 h1 strong{
   font-size: 48px;
   text-decoration:underline;
 }
 
 header p{
+=======
+
+h1 strong {
+  font-size: 48px;
+  text-decoration: underline;
+}
+
+header p {
+>>>>>>> 1e12773
   max-width: 80%;
   text-align: center;
 }
 
+<<<<<<< HEAD
 button{
   max-width:250px;
+=======
+button {
+  max-width: 250px;
+>>>>>>> 1e12773
   background-color: #4f8ff0;
   color: #ffffff;
   padding: 12px 24px;
@@ -62,9 +175,13 @@ button{
   margin: 100px;
 }
 
+<<<<<<< HEAD
 
 
 main{
+=======
+main {
+>>>>>>> 1e12773
   height: 200dvh;
   width: 100%;
   display: flex;
@@ -73,8 +190,18 @@ main{
   justify-content: space-around;
   background-color: green;
 }
+<<<<<<< HEAD
 main ol{
   width:90%;
+=======
+
+main .gallery-container {
+  height: 50dvh;
+}
+
+main ol {
+  width: 90%;
+>>>>>>> 1e12773
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -84,8 +211,12 @@ main ol{
   padding-left: 60px;
 }
 
+<<<<<<< HEAD
 
 ol li{
+=======
+ol li {
+>>>>>>> 1e12773
   height: 100%;
   width: 100%;
   list-style-position: inside;
@@ -93,6 +224,7 @@ ol li{
   background-color: red;
 }
 
+<<<<<<< HEAD
 footer{
   height: 100px;
   background-color: #4f8ff0;
@@ -128,6 +260,23 @@ a:hover{
 }
 
 /* Sekcja dodawania */
+=======
+/* ==========================================
+   4. GALERIA I SIATKA MASONRY
+   ========================================== */
+.gallery-header {
+  width: 100%;
+  height: 50dvh;
+  margin-bottom: 2rem;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+}
+
+>>>>>>> 1e12773
 .upload-section {
   text-align: center;
   margin-bottom: 2rem;
@@ -139,7 +288,11 @@ a:hover{
 }
 
 .upload-button {
+<<<<<<< HEAD
   max-width:250px;
+=======
+  max-width: 250px;
+>>>>>>> 1e12773
   cursor: pointer;
   background-color: #4f8ff0;
   color: #ffffff;
@@ -159,11 +312,15 @@ a:hover{
   display: none;
 }
 
+<<<<<<< HEAD
 /* Układ Masonry Grid oparty o CSS Columns */
+=======
+>>>>>>> 1e12773
 .masonry-grid {
   margin: auto;
   width: 90% !important;
   column-count: 2;
+<<<<<<< HEAD
   column-gap: 0.5rem; /* Odstęp między kolumnami */
   width: 100%;
   padding:10px;
@@ -171,11 +328,22 @@ a:hover{
   box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.699);
   border-radius: 15px;
 
+=======
+  column-gap: 0.5rem;
+  padding: 10px;
+  box-sizing: border-box;
+  box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.699);
+  border-radius: 15px;
+>>>>>>> 1e12773
 }
 
 .masonry-item {
   break-inside: avoid;
+<<<<<<< HEAD
   margin-bottom: 0.5rem; /* Odstęp pionowy między zdjęciami */
+=======
+  margin-bottom: 0.5rem;
+>>>>>>> 1e12773
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
@@ -184,7 +352,11 @@ a:hover{
 
 .gallery-thumb {
   width: 100%;
+<<<<<<< HEAD
   height: auto !important; /* Zachowuje naturalne proporcje pionowe/poziome */
+=======
+  height: auto !important;
+>>>>>>> 1e12773
   display: block;
   object-fit: cover;
 }
@@ -193,6 +365,7 @@ a:hover{
   transform: scale(1.03);
 }
 
+<<<<<<< HEAD
 /* RWD – dopasowanie kolumn do ekranu */
 @media (min-width: 768px) {
   .masonry-grid {
@@ -394,6 +567,47 @@ main .gallery-container{
 }
 
 /* Styl TikTok / Instagram Fullscreen Modal */
+=======
+.video-thumb-container {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.play-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.play-icon {
+  width: 64px;
+  height: 64px;
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(8px);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 24px;
+  padding-left: 4px;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.video-thumb-container:hover .play-icon {
+  transform: scale(1.1);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* ==========================================
+   5. MODAL REELS / FULLSCREEN & KOMENTARZE
+   ========================================== */
+>>>>>>> 1e12773
 .reel-modal-overlay {
   position: fixed;
   inset: 0;
@@ -436,7 +650,10 @@ main .gallery-container{
   height: 100%;
 }
 
+<<<<<<< HEAD
 /* Autor po lewej na dole */
+=======
+>>>>>>> 1e12773
 .reel-author-info {
   position: absolute;
   bottom: 80px;
@@ -449,7 +666,10 @@ main .gallery-container{
   padding: 6px 12px;
   border-radius: 30px;
   backdrop-filter: blur(4px);
+<<<<<<< HEAD
 
+=======
+>>>>>>> 1e12773
 }
 
 .author-avatar {
@@ -470,7 +690,10 @@ main .gallery-container{
   font-size: 0.95rem;
 }
 
+<<<<<<< HEAD
 /* Przyciski po prawej stronie */
+=======
+>>>>>>> 1e12773
 .reel-actions {
   position: absolute;
   right: 16px;
@@ -511,7 +734,18 @@ main .gallery-container{
   margin-top: 2px;
 }
 
+<<<<<<< HEAD
 /* Dolny panel komentarzy (Bottom Sheet) */
+=======
+.slideshow-toggle-square-btn {
+  border-radius: 12px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Dolny arkusz komentarzy (Bottom Sheet) */
+>>>>>>> 1e12773
 .bottom-comments-sheet {
   position: absolute;
   bottom: 0;
@@ -603,6 +837,7 @@ main .gallery-container{
   margin: 0;
 }
 
+<<<<<<< HEAD
 .scroll-to-top-wrapper{
   display: flex;
   align-items: center;
@@ -712,6 +947,11 @@ nav ul li{
   color: white;
 }
 
+=======
+/* ==========================================
+   6. ANIMACJE I WSKAŹNIKI
+   ========================================== */
+>>>>>>> 1e12773
 @keyframes fadeInOut {
   0% { opacity: 0; transform: scale(0.98); }
   100% { opacity: 1; transform: scale(1); }
@@ -721,6 +961,7 @@ nav ul li{
   animation: fadeInOut 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+<<<<<<< HEAD
 /* Nakładka paska sterowania pokazem slajdów */
 .slideshow-controls-overlay {
   width: 10vw;
@@ -774,6 +1015,8 @@ nav ul li{
 .slideshow-main-btn:hover {
   background-color: #4338ca;
 }
+=======
+>>>>>>> 1e12773
 @keyframes popIn {
   0% { transform: scale(0.5); opacity: 0; }
   50% { transform: scale(1.1); opacity: 1; }
@@ -799,9 +1042,30 @@ nav ul li{
   pointer-events: none;
   animation: popIn 0.6s ease-out forwards;
 }
+<<<<<<< HEAD
 .slideshow-toggle-square-btn{
   border-radius: 12px !important; /* zaokrąglony kwadrat */
   display: flex;
   align-items: center;
   justify-content: center;
+=======
+
+/* ==========================================
+   7. MEDIA QUERIES (RWD)
+   ========================================== */
+@media (min-width: 768px) {
+  .masonry-grid {
+    column-count: 3;
+    column-gap: 1rem;
+  }
+  .masonry-item {
+    margin-bottom: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .masonry-grid {
+    column-count: 3;
+  }
+>>>>>>> 1e12773
 }
