@@ -1,0 +1,595 @@
+'use client';
+
+import { useState, useEffect, ChangeEvent } from 'react';
+import Image from 'next/image';
+import { processUploadedImage } from '@/lib/imageOptimizer';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { Home, Image as GalleryIcon, Gamepad2, Mail } from 'lucide-react';
+
+interface Comment {
+  id: string;
+  text: string;
+  createdAt: string;
+}
+
+interface MediaItem {
+  id: string | number;
+  type: 'image' | 'video';
+  src: string;
+  thumbSrc?: string;
+  alt: string;
+  authorName?: string;
+  likes: number;
+  isLiked?: boolean;
+  comments: Comment[];
+  url?: string;
+}
+
+const generateVideoThumbnail = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.src = URL.createObjectURL(file);
+    video.muted = true;
+    video.playsInline = true;
+
+    video.onloadeddata = () => {
+      video.currentTime = 1;
+    };
+
+    video.onseeked = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const thumbUrl = canvas.toDataURL('image/jpeg', 0.8);
+      URL.revokeObjectURL(video.src);
+      resolve(thumbUrl);
+    };
+
+    video.onerror = (err) => reject(err);
+  });
+};
+
+const initialMedia: MediaItem[] = [
+  {
+    id: 1,
+    type: 'image',
+    src: '/images/background.jpg',
+    thumbSrc: '/images/background.jpg',
+    alt: 'Pierwszy taniec',
+    authorName: 'Damian',
+    likes: 12,
+    comments: [{ id: '1', text: 'Super ujęcie!', createdAt: '12:30' }],
+  }
+];
+
+export default function GaleriaPage() {
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>(initialMedia);
+  const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
+  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
+  const [newCommentText, setNewCommentText] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const pathname = usePathname();
+  const [isSlideshowActive, setIsSlideshowActive] = useState(false);
+  const [slideshowIndicator, setSlideshowIndicator] = useState<'play' | 'pause' | null>(null);
+
+  const navLinks = [
+    { href: '/', icon: Home, label: 'Home' },
+    { href: '/galeria', icon: GalleryIcon, label: 'Galeria' },
+    { href: '/games', icon: Gamepad2, label: 'Gry' },
+    { href: '/contact', icon: Mail, label: 'Kontakt' },
+  ];
+
+  const fetchMedia = async () => {
+    try {
+      const res = await fetch('/api/media', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+        const fetchedItems: MediaItem[] = data.data.map((item: any, idx: number) => ({
+          id: item.id || `fetched-${idx}-${Date.now()}`,
+          type: item.resourceType === 'video' || item.type === 'video' ? 'video' : 'image',
+          src: item.url,
+          thumbSrc: item.url,
+          alt: 'Zdjęcie z wydarzenia',
+          authorName: item.authorName || 'Gość',
+          likes: item.likes || 0,
+          comments: item.comments || [],
+        }));
+        setMediaItems(fetchedItems);
+      }
+    } catch (err) {
+      console.error('Błąd podczas pobierania galerii:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchMedia();
+  }, []);
+
+  const nextSlide = () => {
+    if (!selectedMedia) return;
+    setMediaItems((currentItems) => {
+      const currentIndex = currentItems.findIndex(m => m.id === selectedMedia.id);
+      const nextIndex = (currentIndex + 1) % currentItems.length;
+      setSelectedMedia(currentItems[nextIndex]);
+      return currentItems;
+    });
+  };
+
+  const prevSlide = () => {
+    if (!selectedMedia) return;
+    setMediaItems((currentItems) => {
+      const currentIndex = currentItems.findIndex(m => m.id === selectedMedia.id);
+      const prevIndex = (currentIndex - 1 + currentItems.length) % currentItems.length;
+      setSelectedMedia(currentItems[prevIndex]);
+      return currentItems;
+    });
+  };
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (selectedMedia && isSlideshowActive) {
+      interval = setInterval(() => {
+        nextSlide();
+      }, 4000);
+    }
+    return () => clearInterval(interval);
+  }, [selectedMedia, isSlideshowActive]);
+
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    const processedItems: MediaItem[] = [];
+
+    for (let file of Array.from(files)) {
+      const isVideo = file.type.startsWith('video/');
+      const isImage = file.type.startsWith('image/');
+
+      if (!isImage && !isVideo) continue;
+
+      if (isVideo) {
+        try {
+          file = await compressVideo(file);
+        } catch (err) {
+          console.warn('Nie udało się skompresować wideo, wysyłam oryginał:', err);
+        }
+      }
+
+      let uploadedUrl = '';
+
+      try {
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: file.name, contentType: file.type }),
+        });
+        
+        const { uploadUrl, publicUrl, success } = await res.json();
+
+        if (success && uploadUrl) {
+          const uploadRes = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type },
+            body: file,
+          });
+
+          if (uploadRes.ok) {
+            uploadedUrl = publicUrl;
+
+            try {
+              await fetch('/api/media', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  url: uploadedUrl,
+                  type: isVideo ? 'video' : 'image',
+                  authorName: 'Gość',
+                }),
+              });
+            } catch (dbErr) {
+              console.error('Błąd zapisu w bazie danych:', dbErr);
+            }
+          }
+        }
+      } catch (uploadErr) {
+        console.error('Błąd podczas uploadu do AWS S3:', uploadErr);
+      }
+
+      if (isImage) {
+        try {
+          const { thumb, full } = await processUploadedImage(file);
+          processedItems.push({
+            id: Date.now() + Math.random(),
+            type: 'image',
+            src: uploadedUrl || full,
+            thumbSrc: uploadedUrl || thumb,
+            alt: file.name,
+            authorName: 'Gość',
+            likes: 0,
+            comments: [],
+          });
+        } catch (err) {
+          console.error('Błąd miniatury zdjęcia:', err);
+        }
+      } else if (isVideo) {
+        try {
+          const thumbUrl = await generateVideoThumbnail(file);
+
+          processedItems.push({
+            id: Date.now() + Math.random(),
+            type: 'video',
+            src: uploadedUrl,
+            thumbSrc: thumbUrl,
+            alt: file.name,
+            authorName: 'Gość',
+            likes: 0,
+            comments: [],
+          });
+        } catch (err) {
+          console.error('Błąd miniatury wideo:', err);
+        }
+      }
+    }
+
+    setMediaItems((prev) => [...processedItems, ...prev]);
+    setIsUploading(false);
+    e.target.value = '';
+  };
+
+  const handleToggleLike = (id: string | number) => {
+    setMediaItems((prev) =>
+      prev.map((item) => {
+        if (item.id === id) {
+          const isLiked = !item.isLiked;
+          const likes = isLiked ? item.likes + 1 : item.likes - 1;
+          const updated = { ...item, likes, isLiked };
+          if (selectedMedia?.id === id) setSelectedMedia(updated);
+          return updated;
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleAddComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCommentText.trim() || !selectedMedia) return;
+
+    const newComment: Comment = {
+      id: Date.now().toString(),
+      text: newCommentText.trim(),
+      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setMediaItems((prev) =>
+      prev.map((item) => {
+        if (item.id === selectedMedia.id) {
+          const updated = { ...item, comments: [...item.comments, newComment] };
+          setSelectedMedia(updated);
+          return updated;
+        }
+        return item;
+      })
+    );
+
+    setNewCommentText('');
+  };
+
+  const closeModal = () => {
+    setSelectedMedia(null);
+    setIsCommentsOpen(false);
+    setIsSlideshowActive(false);
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
+  };
+
+  const compressVideo = async (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.src = URL.createObjectURL(file);
+      video.muted = true;
+      video.playsInline = true;
+
+      video.onloadedmetadata = () => {
+        video.play();
+      };
+
+      video.onplay = () => {
+        const canvas = document.createElement('canvas');
+        let width = video.videoWidth;
+        let height = video.videoHeight;
+        const maxDim = 1080;
+
+        if (width > height && width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+
+        const stream = canvas.captureStream(30);
+        let recorder: MediaRecorder;
+        try {
+          recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+        } catch {
+          try {
+            recorder = new MediaRecorder(stream, { mimeType: 'video/mp4' });
+          } catch {
+            resolve(file);
+            return;
+          }
+        }
+
+        const chunks: Blob[] = [];
+        recorder.ondataavailable = (e) => chunks.push(e.data);
+        recorder.onstop = () => {
+          const compressedBlob = new Blob(chunks, { type: file.type });
+          const compressedFile = new File([compressedBlob], file.name, { type: file.type });
+          resolve(compressedFile);
+        };
+
+        recorder.start();
+
+        const draw = () => {
+          if (video.ended || video.paused) {
+            recorder.stop();
+            video.remove();
+            return;
+          }
+          ctx?.drawImage(video, 0, 0, width, height);
+          requestAnimationFrame(draw);
+        };
+        draw();
+      };
+
+      video.onerror = () => resolve(file);
+    });
+  };
+
+  const toggleSlideshow = () => {
+    if (isCommentsOpen) {
+      setIsCommentsOpen(false);
+      return;
+    }
+
+    const nextState = !isSlideshowActive;
+    setIsSlideshowActive(nextState);
+
+    setSlideshowIndicator(nextState ? 'play' : 'pause');
+    setTimeout(() => {
+      setSlideshowIndicator(null);
+    }, 600);
+  };
+
+  return (
+    <>
+      <div className="gallery-container">
+        <div className="gallery-header">
+          <h1>Galeria Wspomnień</h1>
+          <section className="upload-section flex gap-3 justify-center">
+            {/* Przycisk Pokazu Slajdów - uruchamia widok w trybie automatycznego pokazu */}
+            <button 
+              onClick={() => {
+                if (mediaItems.length > 0) {
+                  setSelectedMedia(mediaItems[0]);
+                  setIsSlideshowActive(true);
+                }
+              }}
+              className="upload-button bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-medium transition shadow-md flex items-center gap-2"
+            >
+              ▶ Pokaz slajdów
+            </button>
+            <label className="upload-button">
+              {isUploading ? 'Wysyłanie...' : 'Prześlij wspomnienie'}
+              <input
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                disabled={isUploading}
+                onChange={handleFileUpload}
+                className="file-input"
+              />
+            </label>
+          </section>
+        </div>
+
+        {/* Siatka Masonry Grid - zwykłe powiększenie po kliknięciu */}
+        <div className="masonry-grid">
+          {mediaItems.map((item) => (
+            <div
+              key={item.id}
+              className="masonry-item"
+              onClick={() => {
+                setSelectedMedia(item);
+                setIsSlideshowActive(false); // Zwykłe powiększenie bez pokazu slajdów
+              }}
+            >
+              {item.type === 'image' ? (
+                <Image
+                  src={item.thumbSrc || item.src}
+                  alt={item.alt}
+                  width={400}
+                  height={600}
+                  unoptimized
+                  className="gallery-thumb"
+                />
+              ) : (
+                <div className="video-thumb-container">
+                  <video 
+                    src={item.src} 
+                    preload="metadata" 
+                    className="gallery-thumb object-cover" 
+                  />
+                  <div className="play-overlay">
+                    <span className="play-icon">▶</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Pełnoekranowy widok Reel Style / Modal */}
+        {selectedMedia && (
+          <div 
+            className="reel-modal-overlay"
+            // Obsługa gestów dotykowych (Swipe w lewo / w prawo)
+            onTouchStart={(e) => {
+              // Zapisujemy pozycję początkową dotyku
+              (e.currentTarget as any).touchStartX = e.touches[0].clientX;
+            }}
+            onTouchEnd={(e) => {
+              const startX = (e.currentTarget as any).touchStartX;
+              if (startX === undefined) return;
+              const endX = e.changedTouches[0].clientX;
+              const diffX = startX - endX;
+
+              const threshold = 50; // Minimalna odległość przesunięcia w pikselach, aby zarejestrować gest
+              if (diffX > threshold) {
+                // Przesunięcie w lewo -> Następny slajd
+                nextSlide();
+              } else if (diffX < -threshold) {
+                // Przesunięcie w prawo -> Poprzedni slajd
+                prevSlide();
+              }
+            }}
+          >
+            <button className="reel-close-btn" onClick={closeModal}>
+              ✕
+            </button>
+
+            <div 
+              className="reel-media-wrapper reel-media-animated" 
+              key={selectedMedia?.id} 
+              onClick={toggleSlideshow}
+            >
+              {/* Ikona informacyjna w stylu TikTok na środku ekranu */}
+              {slideshowIndicator && (
+                <div className="slideshow-indicator-overlay">
+                  {slideshowIndicator === 'play' ? '▶' : '⏸'}
+                </div>
+              )}
+
+              {selectedMedia.type === 'image' ? (
+                <Image
+                  key={selectedMedia.src}
+                  src={selectedMedia.src}
+                  alt={selectedMedia.alt}
+                  fill
+                  unoptimized
+                  className="reel-media"
+                />
+              ) : selectedMedia.src && selectedMedia.src.trim() !== '' ? (
+                <video key={selectedMedia.src} src={selectedMedia.src} controls autoPlay loop className="reel-media" />
+              ) : (
+                <div className="flex items-center justify-center h-full text-white">
+                  Brak pliku wideo do wyświetlenia
+                </div>
+              )}
+            </div>
+
+            <div className="reel-author-info">
+              <div className="author-avatar">
+                {(selectedMedia.authorName || 'D')[0].toUpperCase()}
+              </div>
+              <span className="author-name">{selectedMedia.authorName || 'Damian'}</span>
+            </div>
+
+            <div className="reel-actions">
+              <button
+                className={`action-btn ${selectedMedia.isLiked ? 'liked' : ''}`}
+                onClick={() => handleToggleLike(selectedMedia.id)}
+              >
+                <span className="icon">⭐</span>
+                <span className="count">{selectedMedia.likes}</span>
+              </button>
+
+              <button
+                className="action-btn"
+                onClick={() => setIsCommentsOpen((prev) => !prev)}
+              >
+                <span className="icon">💬</span>
+                <span className="count">{selectedMedia.comments.length}</span>
+              </button>
+            </div>
+
+            <div className={`bottom-comments-sheet ${isCommentsOpen ? 'open' : ''}`}>
+              <div className="sheet-header">
+                <span>Komentarze ({selectedMedia.comments.length})</span>
+                <button className="sheet-close" onClick={() => setIsCommentsOpen(false)}>
+                  ✕
+                </button>
+              </div>
+
+              <div className="sheet-comments-list">
+                {selectedMedia.comments.length === 0 ? (
+                  <p className="no-comments">Brak komentarzy. Napisz coś!</p>
+                ) : (
+                  selectedMedia.comments.map((comment) => (
+                    <div key={comment.id} className="sheet-comment-item">
+                      <p className="comment-text">{comment.text}</p>
+                      <span className="comment-time">{comment.createdAt}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <form onSubmit={handleAddComment} className="sheet-form">
+                <input
+                  type="text"
+                  placeholder="Dodaj komentarz..."
+                  value={newCommentText}
+                  onChange={(e) => setNewCommentText(e.target.value)}
+                />
+                <button type="submit">Wyślij</button>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="scroll-to-top-wrapper">
+        <button onClick={scrollToTop} className="scroll-to-top-btn">
+          ↑ Powrót na górę
+        </button>
+      </div>
+
+      <nav>
+        <ul>
+          {navLinks.map((link) => {
+            const isActive = pathname === link.href;
+            const Icon = link.icon;
+
+            return (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  className={isActive ? 'nav-item active' : 'nav-item'}
+                  title={link.label}
+                  aria-label={link.label}
+                >
+                  <Icon size={24} />
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+    </>
+  );
+}

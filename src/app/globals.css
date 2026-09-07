@@ -1,0 +1,807 @@
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+body{
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 100dvh;
+}
+
+header {
+  width: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  align-items: center;
+  text-align: center;
+color: white;
+  /* Ciemna nakładka: rgba(0, 0, 0, 0.6) oznacza czarny kolor o kryciu 60% */
+  background-image: 
+    linear-gradient(rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6)), 
+    url('/images/background.jpg');
+    
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+h1{
+  font-size: 40px;
+  color: #4f8ff0;
+  max-width: 80%;
+  text-align: center;
+  height: 50%;
+  margin-top: 100px;
+}
+h1 strong{
+  font-size: 48px;
+  text-decoration:underline;
+}
+
+header p{
+  max-width: 80%;
+  text-align: center;
+}
+
+button{
+  max-width:250px;
+  background-color: #4f8ff0;
+  color: #ffffff;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: bold;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  margin: 100px;
+}
+
+
+
+main{
+  height: 200dvh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+  background-color: green;
+}
+main ol{
+  width:90%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  list-style: none;
+  padding-left: 60px;
+}
+
+
+ol li{
+  height: 100%;
+  width: 100%;
+  list-style-position: inside;
+  text-align: center;
+  background-color: red;
+}
+
+footer{
+  height: 100px;
+  background-color: #4f8ff0;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  font-size: 10px;
+  
+}
+.footerLeft,.footerRight{
+  width: 50%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  text-align: center;
+  color: white;
+}
+
+footer a {
+  
+  width: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 50px;
+}
+
+a:hover{
+  transform: scale(1.1);
+  cursor: pointer;
+  color: whitesmoke;
+}
+
+/* Sekcja dodawania */
+.upload-section {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.upload-section h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.upload-button {
+  max-width:250px;
+  cursor: pointer;
+  background-color: #4f8ff0;
+  color: #ffffff;
+  font-weight: bold;
+  padding: 0.6rem 1.2rem;
+  border-radius: 0.5rem;
+  display: inline-block;
+  text-align: center;
+  margin: auto;
+}
+
+.upload-button:hover {
+  background-color: #1d4ed8;
+}
+
+.file-input {
+  display: none;
+}
+
+/* Układ Masonry Grid oparty o CSS Columns */
+.masonry-grid {
+  margin: auto;
+  width: 90% !important;
+  column-count: 2;
+  column-gap: 0.5rem; /* Odstęp między kolumnami */
+  width: 100%;
+  padding:10px;
+  box-sizing: border-box;
+  box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.699);
+  border-radius: 15px;
+
+}
+
+.masonry-item {
+  break-inside: avoid;
+  margin-bottom: 0.5rem; /* Odstęp pionowy między zdjęciami */
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  background-color: #f0f0f0;
+}
+
+.gallery-thumb {
+  width: 100%;
+  height: auto !important; /* Zachowuje naturalne proporcje pionowe/poziome */
+  display: block;
+  object-fit: cover;
+}
+
+.masonry-item:hover .gallery-thumb {
+  transform: scale(1.03);
+}
+
+/* RWD – dopasowanie kolumn do ekranu */
+@media (min-width: 768px) {
+  .masonry-grid {
+    column-count: 3;
+    column-gap: 1rem;
+  }
+  .masonry-item {
+    margin-bottom: 1rem;
+  }
+}
+@media (min-width: 1024px) {
+  .masonry-grid {
+    column-count: 3;
+  }
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-wrapper {
+  position: relative;
+  background-color: #1a1a1a;
+  color: #fff;
+  border-radius: 12px;
+  display: flex;
+  width: 100%;
+  max-width: 1100px;
+  max-height: 85vh;
+  overflow: hidden;
+}
+
+.close-button {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.5rem;
+  cursor: pointer;
+  z-index: 10;
+}
+
+/* Lewa strona - Obraz/Wideo */
+.modal-media-container {
+  flex: 1;
+  background-color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.modal-media {
+  max-width: 100%;
+  max-height: 85vh;
+  object-fit: contain;
+}
+
+/* Prawa strona - Panel Boczny */
+.modal-sidebar {
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  border-left: 1px solid #333;
+  background-color: #18181b;
+}
+
+.sidebar-header h3 {
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  word-break: break-word;
+}
+
+/* Sekcja Like */
+.like-section {
+  margin-bottom: 1.5rem;
+}
+
+.like-btn {
+  background-color: #27272a;
+  border: 1px solid #3f3f46;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.like-btn.liked {
+  background-color: #f59e0b;
+  border-color: #d97706;
+  color: #000;
+}
+
+/* Sekcja Komentarzy */
+.comments-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.comments-header {
+  font-weight: bold;
+  margin-bottom: 0.75rem;
+}
+
+.comments-list {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.comment-item {
+  background-color: #27272a;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.comment-time {
+  font-size: 0.7rem;
+  color: #a1a1aa;
+  display: block;
+  margin-top: 0.2rem;
+}
+
+.no-comments {
+  color: #71717a;
+  font-size: 0.85rem;
+}
+
+/* Formularz komentarza */
+.comment-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.comment-form input {
+  flex: 1;
+  background-color: #27272a;
+  border: 1px solid #3f3f46;
+  color: #fff;
+  padding: 0.5rem;
+  border-radius: 6px;
+}
+
+.comment-form button {
+  background-color: #2563eb;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* RWD - Zwijanie panelu na telefonach */
+@media (max-width: 768px) {
+  .modal-wrapper {
+    flex-direction: column;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-sidebar {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid #333;
+  }
+}
+
+main .gallery-container{
+  height: 50dvh;
+}
+
+.gallery-header {
+  width: 100%;
+  height: 50dvh;
+  margin-bottom: 2rem;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+}
+
+/* Styl TikTok / Instagram Fullscreen Modal */
+.reel-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: #000;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.reel-close-btn {
+  margin: 0;
+  position: absolute;
+  top: 50px;
+  left: 0px;
+  z-index: 2001;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  border: none;
+  font-size: 1.4rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.reel-media-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reel-media {
+  object-fit: contain !important;
+  width: 100%;
+  height: 100%;
+}
+
+/* Autor po lewej na dole */
+.reel-author-info {
+  position: absolute;
+  bottom: 80px;
+  left: 16px;
+  z-index: 2005;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 6px 12px;
+  border-radius: 30px;
+  backdrop-filter: blur(4px);
+
+}
+
+.author-avatar {
+  width: 32px;
+  height: 32px;
+  background-color: #2563eb;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+.author-name {
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+/* Przyciski po prawej stronie */
+.reel-actions {
+  position: absolute;
+  right: 16px;
+  bottom: 80px;
+  z-index: 2005;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+}
+
+.action-btn {
+  background: rgba(0, 0, 0, 0.4);
+  border: none;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  backdrop-filter: blur(4px);
+  transition: transform 0.2s;
+  margin: 0;
+}
+
+.action-btn:active {
+  transform: scale(0.9);
+}
+
+.action-btn .icon {
+  font-size: 1.8rem;
+}
+
+.action-btn .count {
+  font-size: 0.75rem;
+  font-weight: bold;
+  margin-top: 2px;
+}
+
+/* Dolny panel komentarzy (Bottom Sheet) */
+.bottom-comments-sheet {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60vh;
+  background-color: #18181b;
+  color: #fff;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  z-index: 2020;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bottom-comments-sheet.open {
+  transform: translateY(0);
+}
+
+.sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #27272a;
+}
+
+.sheet-close {
+  background: none;
+  border: none;
+  color: #a1a1aa;
+  font-size: 1.2rem;
+  cursor: pointer;
+  margin: 0;
+}
+
+.sheet-comments-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sheet-comment-item {
+  background: #27272a;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.comment-text {
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.comment-time {
+  font-size: 0.7rem;
+  color: #a1a1aa;
+}
+
+.sheet-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.sheet-form input {
+  flex: 1;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  color: #fff;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.sheet-form button {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  margin: 0;
+}
+
+.scroll-to-top-wrapper{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.video-placeholder-card {
+  width: 100%;
+  height: 250px;
+  background-color: #1a1a1a;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.video-placeholder-card:hover {
+  transform: scale(1.02);
+  background-color: #252525;
+}
+
+.play-icon-large {
+  font-size: 36px;
+  background: rgba(255, 255, 255, 0.2);
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 4px; /* Optyczne wyśrodkowanie ikony play */
+}
+
+.video-filename {
+  font-size: 13px;
+  color: #ccc;
+  max-width: 80%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+nav{
+  position: fixed;
+  top:0;
+  width: 100%;
+  z-index: 3000;
+}
+
+nav ul{
+  width: 100%;
+  height: 50px;
+  background-color: #4f8ff0;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+nav ul li{
+  list-style: none;
+  color: white;
+}
+
+.video-thumb-container {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.play-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25); /* Półprzezroczyste przyciemnienie kadru */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.play-icon {
+  width: 64px;
+  height: 64px;
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(8px); /* Okrągły efekt rozmycia szkła */
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 24px;
+  padding-left: 4px; /* Optyczne środkowanie trójkąta */
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.video-thumb-container:hover .play-icon {
+  transform: scale(1.1);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.nav-item{
+  color: grey;
+}
+.nav-item.active{
+  color: white;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: scale(0.98); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.reel-media-animated {
+  animation: fadeInOut 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Nakładka paska sterowania pokazem slajdów */
+.slideshow-controls-overlay {
+  width: 10vw;
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  
+  z-index: 50;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  padding: 8px 16px;
+  border-radius: 9999px;
+  color: white;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+}
+
+/* Przyciski wewnątrz paska sterowania */
+.slideshow-btn {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: color 0.2s ease;
+}
+
+.slideshow-btn:hover {
+  color: #818cf8; /* jasny odcieni fioletu/indigo */
+}
+
+/* Główny przycisk Start / Pauza */
+.slideshow-main-btn {
+  background-color: #4f46e5;
+  border: none;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.slideshow-main-btn:hover {
+  background-color: #4338ca;
+}
+@keyframes popIn {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+.slideshow-indicator-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5000;
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  color: white;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  pointer-events: none;
+  animation: popIn 0.6s ease-out forwards;
+}
+.slideshow-toggle-square-btn{
+  border-radius: 12px !important; /* zaokrąglony kwadrat */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
