@@ -74,6 +74,7 @@ export default function GaleriaPage() {
   const [isUploading, setIsUploading] = useState(false);
   const pathname = usePathname();
   const [isSlideshowActive, setIsSlideshowActive] = useState(false);
+  const [errorImages, setErrorImages] = useState<Record<string, boolean>>({});
 
   const navLinks = [
     { href: '/', icon: Home, label: 'Home' },
@@ -383,38 +384,46 @@ export default function GaleriaPage() {
 
         {/* Siatka Masonry Grid */}
         <div className="masonry-grid">
-          {mediaItems.map((item) => (
-            <div
-              key={item.id}
-              className="masonry-item"
-              onClick={() => {
-                setSelectedMedia(item);
-                setIsSlideshowActive(false);
-              }}
-            >
-              {item.type === 'image' ? (
-                <Image
-                  src={item.thumbSrc || item.src}
-                  alt={item.alt}
-                  width={400}
-                  height={600}
-                  unoptimized
-                  className="gallery-thumb"
-                />
-              ) : (
-                <div className="video-thumb-container">
-                  <video 
-                    src={item.src} 
-                    preload="metadata" 
-                    className="gallery-thumb object-cover" 
+          {mediaItems
+            .filter((item) => !errorImages[item.id])
+            .map((item) => (
+              <div
+                key={item.id}
+                className="masonry-item"
+                onClick={() => {
+                  setSelectedMedia(item);
+                  setIsSlideshowActive(false);
+                }}
+              >
+                {item.type === 'image' ? (
+                  <Image
+                    src={item.thumbSrc || item.src}
+                    alt={item.alt}
+                    width={400}
+                    height={600}
+                    unoptimized
+                    className="gallery-thumb"
+                    onError={() => {
+                      setErrorImages((prev) => ({ ...prev, [item.id]: true }));
+                    }}
                   />
-                  <div className="play-overlay">
-                    <span className="play-icon">▶</span>
+                ) : (
+                  <div className="video-thumb-container">
+                    <video 
+                      src={item.src} 
+                      preload="metadata" 
+                      className="gallery-thumb object-cover" 
+                      onError={() => {
+                        setErrorImages((prev) => ({ ...prev, [item.id]: true }));
+                      }}
+                    />
+                    <div className="play-overlay">
+                      <span className="play-icon">▶</span>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            ))}
         </div>
 
         {/* Pełnoekranowy widok Reel Style */}
