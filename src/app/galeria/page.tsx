@@ -445,13 +445,14 @@ export default function GaleriaPage() {
                 />
               ) : selectedMedia.src && selectedMedia.src.trim() !== '' ? (
                 <video 
-                  key={selectedMedia.src} 
-                  src={selectedMedia.src} 
-                  controls 
-                  playsInline
-                  preload="auto"
-                  className="reel-media" 
-                />
+  key={selectedMedia.src} 
+  src={selectedMedia.src} 
+  controls 
+  playsInline
+  preload="auto"
+  className="reel-media"
+  onError={(e) => console.error("Błąd odtwarzacza wideo:", e.currentTarget.error)}
+/>
               ) : (
                 <div className="flex items-center justify-center h-full text-white">
                   Brak pliku wideo do wyświetlenia
