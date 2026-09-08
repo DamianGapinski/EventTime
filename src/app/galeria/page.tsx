@@ -76,7 +76,7 @@ export default function GaleriaPage() {
   const [isSlideshowActive, setIsSlideshowActive] = useState(false);
   const [errorImages, setErrorImages] = useState<Record<string, boolean>>({});
   const [uploadProgress, setUploadProgress] = useState(0);
-const [uploadStatusText, setUploadStatusText] = useState('');
+  const [uploadStatusText, setUploadStatusText] = useState('');
 
   const navLinks = [
     { href: '/', icon: Home, label: 'Home' },
@@ -179,7 +179,6 @@ const [uploadStatusText, setUploadStatusText] = useState('');
         const { uploadUrl, publicUrl, success } = await res.json();
 
         if (success && uploadUrl) {
-          // Wysyłka z paskiem postępu przez XMLHttpRequest
           await new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
             xhr.open('PUT', uploadUrl);
@@ -324,95 +323,11 @@ const [uploadStatusText, setUploadStatusText] = useState('');
   };
 
   const compressVideo = async (file: File): Promise<File> => {
-    return new Promise((resolve, reject) => {
-      const video = document.createElement('video');
-      video.src = URL.createObjectURL(file);
-      video.muted = false; // Musimy włączyć, żeby pobrać audio
-      video.playsInline = true;
-
-      video.onloadedmetadata = () => {
-        video.play().catch(() => {
-          // Jeśli automatyczne odtwarzanie jest zablokowane, zwracamy oryginał z dźwiękiem
-          resolve(file);
-        });
-      };
-
-      video.onplay = () => {
-        const canvas = document.createElement('canvas');
-        let width = video.videoWidth;
-        let height = video.videoHeight;
-        const maxDim = 1080;
-
-        if (width > height && width > maxDim) {
-          height = Math.round((height * maxDim) / width);
-          width = maxDim;
-        } else if (height > maxDim) {
-          width = Math.round((width * maxDim) / height);
-          height = maxDim;
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-
-        // Pobieramy strumień wideo z canvasa
-        const canvasStream = canvas.captureStream(30);
-        
-        // Pobieramy strumień audio bezpośrednio z oryginalnego elementu wideo
-        const audioStream = (video as any).captureStream ? (video as any).captureStream() : (video as any).mozCaptureStream ? (video as any).mozCaptureStream() : null;
-
-        if (audioStream && audioStream.getAudioTracks().length > 0) {
-          canvasStream.addTrack(audioStream.getAudioTracks()[0]);
-        }
-
-        let recorder: MediaRecorder;
-        const options = [
-          { mimeType: 'video/webm;codecs=vp9,opus' },
-          { mimeType: 'video/webm' },
-          { mimeType: 'video/mp4' }
-        ];
-
-        const selectedOption = options.find(opt => MediaRecorder.isTypeSupported(opt.mimeType));
-        
-        try {
-          recorder = new MediaRecorder(canvasStream, selectedOption || undefined);
-        } catch {
-          resolve(file);
-          return;
-        }
-
-        const chunks: Blob[] = [];
-        recorder.ondataavailable = (e) => chunks.push(e.data);
-        recorder.onstop = () => {
-          const compressedBlob = new Blob(chunks, { type: recorder.mimeType || 'video/mp4' });
-          if (compressedBlob.size >= file.size) {
-            resolve(file);
-          } else {
-            const compressedFile = new File([compressedBlob], file.name.replace(/\.[^/.]+$/, "") + '.mp4', { type: compressedBlob.type });
-            resolve(compressedFile);
-          }
-          URL.revokeObjectURL(video.src);
-        };
-
-        recorder.start();
-
-        const draw = () => {
-          if (video.ended || video.paused) {
-            if (recorder.state === 'recording') recorder.stop();
-            video.remove();
-            return;
-          }
-          ctx?.drawImage(video, 0, 0, width, height);
-          requestAnimationFrame(draw);
-        };
-        draw();
-      };
-
-      video.onerror = () => {
-        URL.revokeObjectURL(video.src);
-        resolve(file);
-      };
-    });
+    const MAX_SIZE_MB = 60;
+    if (file.size <= MAX_SIZE_MB * 1024 * 1024) {
+      return file;
+    }
+    return file;
   };
 
   return (
@@ -529,7 +444,16 @@ const [uploadStatusText, setUploadStatusText] = useState('');
                   className="reel-media"
                 />
               ) : selectedMedia.src && selectedMedia.src.trim() !== '' ? (
-                <video key={selectedMedia.src} src={selectedMedia.src} controls autoPlay loop className="reel-media" />
+                <video 
+                  key={selectedMedia.src} 
+                  src={selectedMedia.src} 
+                  controls 
+                  autoPlay 
+                  loop 
+                  muted={false} 
+                  playsInline 
+                  className="reel-media" 
+                />
               ) : (
                 <div className="flex items-center justify-center h-full text-white">
                   Brak pliku wideo do wyświetlenia
@@ -545,7 +469,6 @@ const [uploadStatusText, setUploadStatusText] = useState('');
             </div>
 
             <div className="reel-actions">
-              {/* Przycisk pokazu slajdów w zaokrąglonym kwadracie nad gwiazdką */}
               <button
                 className="action-btn slideshow-toggle-square-btn"
                 onClick={() => setIsSlideshowActive((prev) => !prev)}
