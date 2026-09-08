@@ -165,17 +165,29 @@ export default function GaleriaPage() {
         const formData = new FormData();
         formData.append('file', file);
 
+        // 1. Pobierz podpisany link z API
         const res = await fetch('/api/upload', {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: file.name, contentType: file.type || 'video/mp4' }),
         });
         
         const data = await res.json();
 
-        if (data.success && data.publicUrl) {
-          uploadedUrl = data.publicUrl;
+        if (data.success && data.uploadUrl) {
+          // 2. Wyślij plik bezpośrednio do S3 jako czysty strumień (Blob), pomijając serwer Next.js
+          const uploadRes = await fetch(data.uploadUrl, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': file.type || 'video/mp4',
+            },
+            body: file, // Obiekt File dziedziczy po Blob i przesyła surowe bajty bez modyfikacji
+          });
 
-          try {
+          if (uploadRes.ok) {
+            uploadedUrl = data.publicUrl;
+
+            // 3. Zapisz wpis w bazie danych
             await fetch('/api/media', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -185,8 +197,8 @@ export default function GaleriaPage() {
                 authorName: 'Gość',
               }),
             });
-          } catch (dbErr) {
-            console.error('Błąd zapisu w bazie danych:', dbErr);
+          } else {
+            console.error('Błąd uploadu bezpośredniego do S3:', uploadRes.statusText);
           }
         }
       } catch (uploadErr) {
