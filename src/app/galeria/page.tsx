@@ -448,10 +448,8 @@ export default function GaleriaPage() {
                   key={selectedMedia.src} 
                   src={selectedMedia.src} 
                   controls 
-                  autoPlay 
-                  loop 
-                  muted={false} 
-                  playsInline 
+                  playsInline
+                  preload="auto"
                   className="reel-media" 
                 />
               ) : (
