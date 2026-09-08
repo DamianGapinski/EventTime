@@ -74,10 +74,6 @@ export default function GaleriaPage() {
   const [isUploading, setIsUploading] = useState(false);
   const pathname = usePathname();
   const [isSlideshowActive, setIsSlideshowActive] = useState(false);
-<<<<<<< HEAD
-  const [slideshowIndicator, setSlideshowIndicator] = useState<'play' | 'pause' | null>(null);
-=======
->>>>>>> 1e12773
 
   const navLinks = [
     { href: '/', icon: Home, label: 'Home' },
@@ -364,46 +360,13 @@ export default function GaleriaPage() {
     });
   };
 
-<<<<<<< HEAD
-  const toggleSlideshow = () => {
-    if (isCommentsOpen) {
-      setIsCommentsOpen(false);
-      return;
-    }
-
-    const nextState = !isSlideshowActive;
-    setIsSlideshowActive(nextState);
-
-    setSlideshowIndicator(nextState ? 'play' : 'pause');
-    setTimeout(() => {
-      setSlideshowIndicator(null);
-    }, 600);
-  };
-
-=======
->>>>>>> 1e12773
   return (
     <>
       <div className="gallery-container">
         <div className="gallery-header">
           <h1>Galeria Wspomnień</h1>
           <section className="upload-section flex gap-3 justify-center">
-<<<<<<< HEAD
-            {/* Przycisk Pokazu Slajdów - uruchamia widok w trybie automatycznego pokazu */}
-            <button 
-              onClick={() => {
-                if (mediaItems.length > 0) {
-                  setSelectedMedia(mediaItems[0]);
-                  setIsSlideshowActive(true);
-                }
-              }}
-              className="upload-button bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-medium transition shadow-md flex items-center gap-2"
-            >
-              ▶ Pokaz slajdów
-            </button>
-=======
             {/* Przycisk "Pokaz slajdów" z nagłówka został usunięty zgodnie z życzeniem */}
->>>>>>> 1e12773
             <label className="upload-button">
               {isUploading ? 'Wysyłanie...' : 'Prześlij wspomnienie'}
               <input
@@ -418,11 +381,7 @@ export default function GaleriaPage() {
           </section>
         </div>
 
-<<<<<<< HEAD
-        {/* Siatka Masonry Grid - zwykłe powiększenie po kliknięciu */}
-=======
         {/* Siatka Masonry Grid */}
->>>>>>> 1e12773
         <div className="masonry-grid">
           {mediaItems.map((item) => (
             <div
@@ -430,11 +389,7 @@ export default function GaleriaPage() {
               className="masonry-item"
               onClick={() => {
                 setSelectedMedia(item);
-<<<<<<< HEAD
-                setIsSlideshowActive(false); // Zwykłe powiększenie bez pokazu slajdów
-=======
                 setIsSlideshowActive(false);
->>>>>>> 1e12773
               }}
             >
               {item.type === 'image' ? (
@@ -462,21 +417,11 @@ export default function GaleriaPage() {
           ))}
         </div>
 
-<<<<<<< HEAD
-        {/* Pełnoekranowy widok Reel Style / Modal */}
-        {selectedMedia && (
-          <div 
-            className="reel-modal-overlay"
-            // Obsługa gestów dotykowych (Swipe w lewo / w prawo)
-            onTouchStart={(e) => {
-              // Zapisujemy pozycję początkową dotyku
-=======
         {/* Pełnoekranowy widok Reel Style */}
         {selectedMedia && (
           <div 
             className="reel-modal-overlay"
             onTouchStart={(e) => {
->>>>>>> 1e12773
               (e.currentTarget as any).touchStartX = e.touches[0].clientX;
             }}
             onTouchEnd={(e) => {
@@ -485,19 +430,10 @@ export default function GaleriaPage() {
               const endX = e.changedTouches[0].clientX;
               const diffX = startX - endX;
 
-<<<<<<< HEAD
-              const threshold = 50; // Minimalna odległość przesunięcia w pikselach, aby zarejestrować gest
-              if (diffX > threshold) {
-                // Przesunięcie w lewo -> Następny slajd
-                nextSlide();
-              } else if (diffX < -threshold) {
-                // Przesunięcie w prawo -> Poprzedni slajd
-=======
               const threshold = 50;
               if (diffX > threshold) {
                 nextSlide();
               } else if (diffX < -threshold) {
->>>>>>> 1e12773
                 prevSlide();
               }
             }}
@@ -509,20 +445,8 @@ export default function GaleriaPage() {
             <div 
               className="reel-media-wrapper reel-media-animated" 
               key={selectedMedia?.id} 
-<<<<<<< HEAD
-              onClick={toggleSlideshow}
-            >
-              {/* Ikona informacyjna w stylu TikTok na środku ekranu */}
-              {slideshowIndicator && (
-                <div className="slideshow-indicator-overlay">
-                  {slideshowIndicator === 'play' ? '▶' : '⏸'}
-                </div>
-              )}
-
-=======
               onClick={() => setIsCommentsOpen(false)}
             >
->>>>>>> 1e12773
               {selectedMedia.type === 'image' ? (
                 <Image
                   key={selectedMedia.src}
@@ -549,8 +473,6 @@ export default function GaleriaPage() {
             </div>
 
             <div className="reel-actions">
-<<<<<<< HEAD
-=======
               {/* Przycisk pokazu slajdów w zaokrąglonym kwadracie nad gwiazdką */}
               <button
                 className="action-btn slideshow-toggle-square-btn"
@@ -560,7 +482,6 @@ export default function GaleriaPage() {
                 <span className="icon">{isSlideshowActive ? '⏸' : '▶'}</span>
               </button>
 
->>>>>>> 1e12773
               <button
                 className={`action-btn ${selectedMedia.isLiked ? 'liked' : ''}`}
                 onClick={() => handleToggleLike(selectedMedia.id)}
