@@ -75,6 +75,8 @@ export default function GaleriaPage() {
   const pathname = usePathname();
   const [isSlideshowActive, setIsSlideshowActive] = useState(false);
   const [errorImages, setErrorImages] = useState<Record<string, boolean>>({});
+  const [uploadProgress, setUploadProgress] = useState(0);
+const [uploadStatusText, setUploadStatusText] = useState('');
 
   const navLinks = [
     { href: '/', icon: Home, label: 'Home' },
@@ -145,8 +147,11 @@ export default function GaleriaPage() {
 
     setIsUploading(true);
     const processedItems: MediaItem[] = [];
+    const totalFiles = files.length;
+    let currentFileIndex = 0;
 
     for (let file of Array.from(files)) {
+      currentFileIndex++;
       const isVideo = file.type.startsWith('video/');
       const isImage = file.type.startsWith('image/');
 
@@ -154,6 +159,7 @@ export default function GaleriaPage() {
 
       if (isVideo) {
         try {
+          setUploadStatusText(`Kompresja wideo (${currentFileIndex}/${totalFiles})...`);
           file = await compressVideo(file);
         } catch (err) {
           console.warn('Nie udało się skompresować wideo, wysyłam oryginał:', err);
@@ -163,6 +169,7 @@ export default function GaleriaPage() {
       let uploadedUrl = '';
 
       try {
+        setUploadStatusText(`Przygotowanie do wysyłki (${currentFileIndex}/${totalFiles})...`);
         const res = await fetch('/api/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -172,15 +179,34 @@ export default function GaleriaPage() {
         const { uploadUrl, publicUrl, success } = await res.json();
 
         if (success && uploadUrl) {
-          const uploadRes = await fetch(uploadUrl, {
-            method: 'PUT',
-            headers: { 'Content-Type': file.type },
-            body: file,
+          // Wysyłka z paskiem postępu przez XMLHttpRequest
+          await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('PUT', uploadUrl);
+            xhr.setRequestHeader('Content-Type', file.type);
+
+            xhr.upload.onprogress = (event) => {
+              if (event.lengthComputable) {
+                const percentComplete = Math.round((event.loaded / event.total) * 100);
+                setUploadProgress(percentComplete);
+                setUploadStatusText(`Wysyłanie ${currentFileIndex}/${totalFiles}: ${percentComplete}%`);
+              }
+            };
+
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                uploadedUrl = publicUrl;
+                resolve(true);
+              } else {
+                reject(new Error(`Błąd uploadu: ${xhr.status}`));
+              }
+            };
+
+            xhr.onerror = () => reject(new Error('Błąd sieci podczas wysyłania'));
+            xhr.send(file);
           });
 
-          if (uploadRes.ok) {
-            uploadedUrl = publicUrl;
-
+          if (uploadedUrl) {
             try {
               await fetch('/api/media', {
                 method: 'POST',
@@ -202,6 +228,7 @@ export default function GaleriaPage() {
 
       if (isImage) {
         try {
+          setUploadStatusText('Generowanie miniatury...');
           const { thumb, full } = await processUploadedImage(file);
           processedItems.push({
             id: Date.now() + Math.random(),
@@ -218,6 +245,7 @@ export default function GaleriaPage() {
         }
       } else if (isVideo) {
         try {
+          setUploadStatusText('Generowanie miniatury wideo...');
           const thumbUrl = await generateVideoThumbnail(file);
 
           processedItems.push({
@@ -238,6 +266,8 @@ export default function GaleriaPage() {
 
     setMediaItems((prev) => [...processedItems, ...prev]);
     setIsUploading(false);
+    setUploadProgress(0);
+    setUploadStatusText('');
     e.target.value = '';
   };
 
@@ -381,19 +411,28 @@ export default function GaleriaPage() {
       <div className="gallery-container">
         <div className="gallery-header">
           <h1>Galeria Wspomnień</h1>
-          <section className="upload-section flex gap-3 justify-center">
-            {/* Przycisk "Pokaz slajdów" z nagłówka został usunięty zgodnie z życzeniem */}
-            <label className="upload-button">
-              {isUploading ? 'Wysyłanie...' : 'Prześlij wspomnienie'}
+          <section className="upload-section flex flex-col items-center gap-2">
+            <label className="upload-button cursor-pointer">
+              {isUploading ? uploadStatusText : 'Prześlij wspomnienie'}
               <input
                 type="file"
                 accept="image/*,video/*"
                 multiple
                 disabled={isUploading}
                 onChange={handleFileUpload}
-                className="file-input"
+                className="file-input hidden"
               />
             </label>
+
+            {/* Pasek postępu */}
+            {isUploading && (
+              <div className="w-full max-xs:w-64 w-72 bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner mt-2">
+                <div 
+                  className="bg-blue-600 h-full transition-all duration-200 ease-out" 
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+            )}
           </section>
         </div>
 
