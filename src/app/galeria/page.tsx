@@ -280,8 +280,50 @@ export default function GaleriaPage() {
         }
       } else if (isVideo) {
         try {
+          setUploadStatusText('Przygotowanie i naprawa wideo...');
+          
+          // 1. Transkodujemy wideo w przeglądarce (naprawia audio i kodeki)
+          const processedVideoFile = await transcodeVideoWithAudio(file, (text) => {
+            setUploadStatusText(text);
+          });
+
+          // 2. Pobieramy podpisany link z API dla przetworzonego pliku .mp4
+          const res = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: processedVideoFile.name, contentType: 'video/mp4' }),
+          });
+          
+          const data = await res.json();
+
+          if (data.success && data.uploadUrl) {
+            setUploadStatusText(`Wysyłanie pliku ${currentFileIndex}/${totalFiles}...`);
+            
+            // 3. Wysyłamy naprawiony plik do S3
+            const uploadRes = await fetch(data.uploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'video/mp4' },
+              body: processedVideoFile,
+            });
+
+            if (uploadRes.ok) {
+              uploadedUrl = data.publicUrl;
+
+              // 4. Zapis w bazie danych
+              await fetch('/api/media', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  url: uploadedUrl,
+                  type: 'video',
+                  authorName: 'Gość',
+                }),
+              });
+            }
+          }
+
           setUploadStatusText('Generowanie miniatury wideo...');
-          const thumbUrl = await generateVideoThumbnail(file);
+          const thumbUrl = await generateVideoThumbnail(processedVideoFile);
 
           processedItems.push({
             id: Date.now() + Math.random(),
@@ -294,7 +336,7 @@ export default function GaleriaPage() {
             comments: [],
           });
         } catch (err) {
-          console.error('Błąd miniatury wideo:', err);
+          console.error('Błąd przetwarzania wideo:', err);
         }
       }
     }
