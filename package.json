@@ -11,11 +11,13 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1124.0",
     "@aws-sdk/s3-request-presigner": "^3.1124.0",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "@uploadthing/react": "^6.6.0",
     "cloudinary": "^2.11.0",
     "googleapis": "^176.0.0",
     "lucide-react": "^1.38.0",
-    "next": "16.3.1",
+    "next": "^16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "uploadthing": "^6.12.0"

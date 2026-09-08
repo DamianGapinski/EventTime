@@ -6,6 +6,8 @@ import { processUploadedImage } from '@/lib/imageOptimizer';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Image as GalleryIcon, Gamepad2, Mail } from 'lucide-react';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
 interface Comment {
   id: string;
@@ -65,6 +67,60 @@ const initialMedia: MediaItem[] = [
     comments: [{ id: '1', text: 'Super ujęcie!', createdAt: '12:30' }],
   }
 ];
+
+let ffmpegInstance: FFmpeg | null = null;
+
+const transcodeVideoWithAudio = async (file: File, onProgress?: (text: string) => void): Promise<File> => {
+  if (!ffmpegInstance) {
+    ffmpegInstance = new FFmpeg();
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+    
+    if (onProgress) onProgress('Ładowanie silnika wideo...');
+    
+    await ffmpegInstance.load({
+      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+    });
+  }
+
+  const ffmpeg = ffmpegInstance;
+  const inputName = 'input_file' + (file.name.substring(file.name.lastIndexOf('.')) || '.mp4');
+  const outputName = 'output_file.mp4';
+
+  if (onProgress) onProgress('Przygotowanie pliku wideo...');
+  
+  // Zapisz plik we wirtualnym systemie plików FFmpeg
+  await ffmpeg.writeFile(inputName, await fetchFile(file));
+
+  if (onProgress) onProgress('Konwersja i naprawa audio...');
+  
+  // Uruchomienie konwersji: wymuszenie kodeka wideo H.264 i audio AAC w kontenerze MP4
+  // To naprawia brak dźwięku na każdym urządzeniu i wszelkie zepsute nagłówki/atomy
+  await ffmpeg.exec([
+    '-i', inputName,
+    '-c:v', 'libx264',
+    '-preset', 'ultrafast',
+    '-c:a', 'aac',
+    '-b:a', '128k',
+    '-movflags', '+faststart',
+    outputName
+  ]);
+
+  if (onProgress) onProgress('Finalizowanie pliku...');
+  
+  const data = (await ffmpeg.readFile(outputName)) as Uint8Array;
+  
+  // Konwertujemy dane na zwykły bufor, co całkowicie satysfakcjonuje TypeScript
+  const arrayBuffer = new Uint8Array(data).buffer;
+
+  const transcodedFile = new File([arrayBuffer], file.name.replace(/\.[^/.]+$/, '') + '.mp4', {
+    type: 'video/mp4',
+  });
+
+  return transcodedFile;
+};
+
+
 
 export default function GaleriaPage() {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>(initialMedia);
@@ -308,6 +364,8 @@ export default function GaleriaPage() {
     }
     return file;
   };
+
+  
 
   return (
     <>
