@@ -157,72 +157,40 @@ export default function GaleriaPage() {
 
       if (!isImage && !isVideo) continue;
 
-      if (isVideo) {
-        try {
-          setUploadStatusText(`Kompresja wideo (${currentFileIndex}/${totalFiles})...`);
-          file = await compressVideo(file);
-        } catch (err) {
-          console.warn('Nie udało się skompresować wideo, wysyłam oryginał:', err);
-        }
-      }
-
       let uploadedUrl = '';
 
       try {
-        setUploadStatusText(`Przygotowanie do wysyłki (${currentFileIndex}/${totalFiles})...`);
+        setUploadStatusText(`Wysyłanie pliku ${currentFileIndex}/${totalFiles}...`);
+        
+        const formData = new FormData();
+        formData.append('file', file);
+
         const res = await fetch('/api/upload', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: file.name, contentType: file.type }),
+          body: formData,
         });
         
-        const { uploadUrl, publicUrl, success } = await res.json();
+        const data = await res.json();
 
-        if (success && uploadUrl) {
-          await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('PUT', uploadUrl);
-            xhr.setRequestHeader('Content-Type', file.type);
+        if (data.success && data.publicUrl) {
+          uploadedUrl = data.publicUrl;
 
-            xhr.upload.onprogress = (event) => {
-              if (event.lengthComputable) {
-                const percentComplete = Math.round((event.loaded / event.total) * 100);
-                setUploadProgress(percentComplete);
-                setUploadStatusText(`Wysyłanie ${currentFileIndex}/${totalFiles}: ${percentComplete}%`);
-              }
-            };
-
-            xhr.onload = () => {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                uploadedUrl = publicUrl;
-                resolve(true);
-              } else {
-                reject(new Error(`Błąd uploadu: ${xhr.status}`));
-              }
-            };
-
-            xhr.onerror = () => reject(new Error('Błąd sieci podczas wysyłania'));
-            xhr.send(file);
-          });
-
-          if (uploadedUrl) {
-            try {
-              await fetch('/api/media', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  url: uploadedUrl,
-                  type: isVideo ? 'video' : 'image',
-                  authorName: 'Gość',
-                }),
-              });
-            } catch (dbErr) {
-              console.error('Błąd zapisu w bazie danych:', dbErr);
-            }
+          try {
+            await fetch('/api/media', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                url: uploadedUrl,
+                type: isVideo ? 'video' : 'image',
+                authorName: 'Gość',
+              }),
+            });
+          } catch (dbErr) {
+            console.error('Błąd zapisu w bazie danych:', dbErr);
           }
         }
       } catch (uploadErr) {
-        console.error('Błąd podczas uploadu do AWS S3:', uploadErr);
+        console.error('Błąd podczas uploadu:', uploadErr);
       }
 
       if (isImage) {
@@ -269,7 +237,6 @@ export default function GaleriaPage() {
     setUploadStatusText('');
     e.target.value = '';
   };
-
   const handleToggleLike = (id: string | number) => {
     setMediaItems((prev) =>
       prev.map((item) => {
