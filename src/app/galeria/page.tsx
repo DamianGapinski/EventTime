@@ -327,18 +327,21 @@ const [uploadStatusText, setUploadStatusText] = useState('');
     return new Promise((resolve, reject) => {
       const video = document.createElement('video');
       video.src = URL.createObjectURL(file);
-      video.muted = true;
+      video.muted = false; // Musimy włączyć, żeby pobrać audio
       video.playsInline = true;
 
       video.onloadedmetadata = () => {
-        video.play();
+        video.play().catch(() => {
+          // Jeśli automatyczne odtwarzanie jest zablokowane, zwracamy oryginał z dźwiękiem
+          resolve(file);
+        });
       };
 
       video.onplay = () => {
         const canvas = document.createElement('canvas');
         let width = video.videoWidth;
         let height = video.videoHeight;
-        const maxDim = 1080; // Maksymalnie Full HD
+        const maxDim = 1080;
 
         if (width > height && width > maxDim) {
           height = Math.round((height * maxDim) / width);
@@ -352,10 +355,17 @@ const [uploadStatusText, setUploadStatusText] = useState('');
         canvas.height = height;
         const ctx = canvas.getContext('2d');
 
-        // Ustawienie niższego framerate i płynniejszego kodowania
-        const stream = canvas.captureStream(30);
-        let recorder: MediaRecorder;
+        // Pobieramy strumień wideo z canvasa
+        const canvasStream = canvas.captureStream(30);
         
+        // Pobieramy strumień audio bezpośrednio z oryginalnego elementu wideo
+        const audioStream = (video as any).captureStream ? (video as any).captureStream() : (video as any).mozCaptureStream ? (video as any).mozCaptureStream() : null;
+
+        if (audioStream && audioStream.getAudioTracks().length > 0) {
+          canvasStream.addTrack(audioStream.getAudioTracks()[0]);
+        }
+
+        let recorder: MediaRecorder;
         const options = [
           { mimeType: 'video/webm;codecs=vp9,opus' },
           { mimeType: 'video/webm' },
@@ -365,9 +375,9 @@ const [uploadStatusText, setUploadStatusText] = useState('');
         const selectedOption = options.find(opt => MediaRecorder.isTypeSupported(opt.mimeType));
         
         try {
-          recorder = new MediaRecorder(stream, selectedOption || undefined);
+          recorder = new MediaRecorder(canvasStream, selectedOption || undefined);
         } catch {
-          resolve(file); // Jeśli przeglądarka nie obsługuje, zwróć oryginał
+          resolve(file);
           return;
         }
 
@@ -375,7 +385,6 @@ const [uploadStatusText, setUploadStatusText] = useState('');
         recorder.ondataavailable = (e) => chunks.push(e.data);
         recorder.onstop = () => {
           const compressedBlob = new Blob(chunks, { type: recorder.mimeType || 'video/mp4' });
-          // Zabezpieczenie przed sytuacją, gdy skompresowany plik byłby większy od oryginału
           if (compressedBlob.size >= file.size) {
             resolve(file);
           } else {
