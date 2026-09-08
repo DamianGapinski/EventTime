@@ -308,7 +308,7 @@ export default function GaleriaPage() {
         const canvas = document.createElement('canvas');
         let width = video.videoWidth;
         let height = video.videoHeight;
-        const maxDim = 1080;
+        const maxDim = 1080; // Maksymalnie Full HD
 
         if (width > height && width > maxDim) {
           height = Math.round((height * maxDim) / width);
@@ -322,32 +322,44 @@ export default function GaleriaPage() {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
 
+        // Ustawienie niższego framerate i płynniejszego kodowania
         const stream = canvas.captureStream(30);
         let recorder: MediaRecorder;
+        
+        const options = [
+          { mimeType: 'video/webm;codecs=vp9,opus' },
+          { mimeType: 'video/webm' },
+          { mimeType: 'video/mp4' }
+        ];
+
+        const selectedOption = options.find(opt => MediaRecorder.isTypeSupported(opt.mimeType));
+        
         try {
-          recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+          recorder = new MediaRecorder(stream, selectedOption || undefined);
         } catch {
-          try {
-            recorder = new MediaRecorder(stream, { mimeType: 'video/mp4' });
-          } catch {
-            resolve(file);
-            return;
-          }
+          resolve(file); // Jeśli przeglądarka nie obsługuje, zwróć oryginał
+          return;
         }
 
         const chunks: Blob[] = [];
         recorder.ondataavailable = (e) => chunks.push(e.data);
         recorder.onstop = () => {
-          const compressedBlob = new Blob(chunks, { type: file.type });
-          const compressedFile = new File([compressedBlob], file.name, { type: file.type });
-          resolve(compressedFile);
+          const compressedBlob = new Blob(chunks, { type: recorder.mimeType || 'video/mp4' });
+          // Zabezpieczenie przed sytuacją, gdy skompresowany plik byłby większy od oryginału
+          if (compressedBlob.size >= file.size) {
+            resolve(file);
+          } else {
+            const compressedFile = new File([compressedBlob], file.name.replace(/\.[^/.]+$/, "") + '.mp4', { type: compressedBlob.type });
+            resolve(compressedFile);
+          }
+          URL.revokeObjectURL(video.src);
         };
 
         recorder.start();
 
         const draw = () => {
           if (video.ended || video.paused) {
-            recorder.stop();
+            if (recorder.state === 'recording') recorder.stop();
             video.remove();
             return;
           }
@@ -357,7 +369,10 @@ export default function GaleriaPage() {
         draw();
       };
 
-      video.onerror = () => resolve(file);
+      video.onerror = () => {
+        URL.revokeObjectURL(video.src);
+        resolve(file);
+      };
     });
   };
 
