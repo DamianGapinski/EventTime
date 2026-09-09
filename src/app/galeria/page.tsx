@@ -74,6 +74,31 @@ const generateVideoThumbnail = (file: File): Promise<string> => {
   });
 };
 
+// Komponent wyświetlający wersję aplikacji z Vercel
+const VersionBadge = () => {
+  const commitHash = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA 
+    ? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA.substring(0, 7) 
+    : 'dev-local';
+
+  return (
+    <div style={{
+      position: 'fixed',
+      bottom: '80px',
+      right: '12px',
+      background: 'rgba(0, 0, 0, 0.75)',
+      color: '#fff',
+      padding: '4px 8px',
+      fontSize: '11px',
+      borderRadius: '4px',
+      zIndex: 9999,
+      pointerEvents: 'none',
+      fontFamily: 'monospace',
+    }}>
+      v: {commitHash}
+    </div>
+  );
+};
+
 const initialMedia: MediaItem[] = [
   {
     id: 1,
@@ -142,7 +167,7 @@ export default function GaleriaPage() {
     onProgress: (progress: number) => void
   ): Promise<File> => {
     if (!ffmpeg || !ffmpegLoaded) {
-      return file; // Jeśli ffmpeg nie załadowany, zwracamy oryginał
+      return file; 
     }
 
     try {
@@ -153,12 +178,11 @@ export default function GaleriaPage() {
       await ffmpeg.writeFile(inputName, await fetchFile(file));
 
       ffmpeg.on('progress', ({ progress }) => {
-        // Prprogress od 0 do 1 mapujemy na zakres 15-85%
         const percent = Math.min(Math.round(progress * 70) + 15, 85);
         onProgress(percent);
       });
 
-      // Transkodowanie z zachowaniem audio (AAC) i stabilnym kodekiem wideo (H.264)
+      // Bezpieczna komenda transkodowania z zachowaniem audio i obsługą braku ścieżki dźwiękowej
       await ffmpeg.exec([
         '-i', inputName,
         '-c:v', 'libx264',
@@ -167,7 +191,7 @@ export default function GaleriaPage() {
         '-c:a', 'aac',
         '-b:a', '128k',
         '-map', '0:v:0',
-        '-map', '0:a:0?', // Ten znak zapytania zabezpiecza przed błędem, gdyby film nie miał ścieżki audio
+        '-map', '0:a:0?',
         '-movflags', '+faststart',
         outputName,
       ]);
@@ -181,7 +205,6 @@ export default function GaleriaPage() {
         { type: 'video/mp4' }
       );
 
-      // Czyszczenie plików z wirtualnego systemu plików ffmpeg
       try {
         await ffmpeg.deleteFile(inputName);
         await ffmpeg.deleteFile(outputName);
@@ -276,7 +299,6 @@ export default function GaleriaPage() {
 
         if (!isImage && !isVideo) continue;
 
-        // Jeśli to wideo, optymalizujemy/transkodujemy je z zachowaniem dźwięku
         if (isVideo) {
           setUploadStatusText(`Optymalizacja wideo ${currentFileIndex}/${totalFiles} (FFmpeg)...`);
           originalFile = await transcodeVideoWithAudio(originalFile, (p) => {
@@ -545,7 +567,6 @@ export default function GaleriaPage() {
                   src={selectedMedia.src}
                   controls
                   playsInline
-                  autoPlay // Dodanie autoPlay wymusza start
                   preload="auto"
                   className="reel-media"
                 />
@@ -623,6 +644,8 @@ export default function GaleriaPage() {
           </div>
         )}
       </div>
+
+      <VersionBadge />
 
       <div className="scroll-to-top-wrapper">
         <button onClick={scrollToTop} className="scroll-to-top-btn">
