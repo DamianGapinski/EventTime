@@ -1,13 +1,11 @@
 'use client';
 
-import { useState, useEffect, ChangeEvent, useRef } from 'react';
+import { useState, useEffect, ChangeEvent } from 'react';
 import Image from 'next/image';
 import { processUploadedImage } from '@/lib/imageOptimizer';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Image as GalleryIcon, Gamepad2, Mail } from 'lucide-react';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
 interface Comment {
   id: string;
@@ -105,74 +103,12 @@ export default function GaleriaPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatusText, setUploadStatusText] = useState('');
 
-  // Bezpieczna instancja FFmpeg wewnątrz useRef zapobiegająca ponownemu ładowaniu
-  const ffmpegRef = useRef<FFmpeg | null>(null);
-
   const navLinks = [
     { href: '/', icon: Home, label: 'Home' },
     { href: '/galeria', icon: GalleryIcon, label: 'Galeria' },
     { href: '/games', icon: Gamepad2, label: 'Gry' },
     { href: '/contact', icon: Mail, label: 'Kontakt' },
   ];
-
-  const transcodeVideoWithAudio = async (
-    file: File,
-    onProgress?: (text: string) => void
-  ): Promise<File> => {
-    if (!ffmpegRef.current) {
-      ffmpegRef.current = new FFmpeg();
-      const ffmpeg = ffmpegRef.current;
-
-      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-      onProgress?.('Ładowanie silnika wideo...');
-
-      await ffmpeg.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-      });
-    }
-
-    const ffmpeg = ffmpegRef.current;
-    const extension = file.name.substring(file.name.lastIndexOf('.')) || '.mp4';
-    const inputName = `input${extension}`;
-    const outputName = 'output.mp4';
-
-    onProgress?.('Przygotowanie pliku wideo...');
-    await ffmpeg.writeFile(inputName, await fetchFile(file));
-
-    onProgress?.('Konwersja wideo i audio...');
-    await ffmpeg.exec([
-      '-i', inputName,
-      '-map', '0:v:0',
-      '-map', '0:a:0?',
-      '-c:v', 'libx264',
-      '-preset', 'ultrafast',
-      '-pix_fmt', 'yuv420p',
-      '-c:a', 'aac',
-      '-b:a', '128k',
-      '-ar', '48000',
-      '-ac', '2',
-      '-movflags', '+faststart',
-      outputName,
-    ]);
-
-    onProgress?.('Finalizowanie pliku...');
-    const data = (await ffmpeg.readFile(outputName)) as Uint8Array;
-    const arrayBuffer = new Uint8Array(data).buffer;
-
-    try {
-      await ffmpeg.deleteFile(inputName);
-      await ffmpeg.deleteFile(outputName);
-    } catch (cleanupError) {
-      console.warn('Nie udało się wyczyścić pamięci FFmpeg:', cleanupError);
-    }
-
-    return new File(
-      [arrayBuffer],
-      file.name.replace(/\.[^/.]+$/, '') + '.mp4',
-      { type: 'video/mp4' }
-    );
-  };
 
   const fetchMedia = async () => {
     try {
@@ -253,25 +189,15 @@ export default function GaleriaPage() {
 
         if (!isImage && !isVideo) continue;
 
-        setUploadStatusText(`Przygotowanie pliku ${currentFileIndex}/${totalFiles}...`);
-        setUploadProgress(Math.round((i / totalFiles) * 100));
-
-        let fileToUpload = originalFile;
-
-        if (isVideo) {
-          fileToUpload = await transcodeVideoWithAudio(originalFile, (text) =>
-            setUploadStatusText(text)
-          );
-        }
-
         setUploadStatusText(`Wysyłanie pliku ${currentFileIndex}/${totalFiles}...`);
+        setUploadProgress(Math.round((i / totalFiles) * 100));
 
         const uploadRequest = await fetch('/api/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            filename: fileToUpload.name,
-            contentType: fileToUpload.type || (isVideo ? 'video/mp4' : 'application/octet-stream'),
+            filename: originalFile.name,
+            contentType: originalFile.type || (isVideo ? 'video/mp4' : 'application/octet-stream'),
           }),
         });
 
@@ -287,9 +213,9 @@ export default function GaleriaPage() {
         const uploadRes = await fetch(uploadData.uploadUrl, {
           method: 'PUT',
           headers: {
-            'Content-Type': fileToUpload.type || (isVideo ? 'video/mp4' : 'application/octet-stream'),
+            'Content-Type': originalFile.type || (isVideo ? 'video/mp4' : 'application/octet-stream'),
           },
-          body: fileToUpload,
+          body: originalFile,
         });
 
         if (!uploadRes.ok) {
@@ -327,7 +253,7 @@ export default function GaleriaPage() {
           }
         } else {
           setUploadStatusText('Generowanie miniatury wideo...');
-          const thumbUrl = await generateVideoThumbnail(fileToUpload);
+          const thumbUrl = await generateVideoThumbnail(originalFile);
           processedItems.push({
             id: Date.now() + Math.random(),
             type: 'video',
