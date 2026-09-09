@@ -205,6 +205,8 @@ export default function GaleriaPage() {
     const fileArray = Array.from(files);
     const totalFiles = fileArray.length;
 
+    console.log(`[FRONTEND] Wybrano plików: ${totalFiles}`);
+
     try {
       for (let i = 0; i < fileArray.length; i++) {
         const file = fileArray[i];
@@ -212,9 +214,16 @@ export default function GaleriaPage() {
         const isVideo = file.type.startsWith('video/');
         const isImage = file.type.startsWith('image/');
 
+        console.log(`[FRONTEND] Plik ${currentFileIndex}:`, {
+          name: file.name,
+          size: file.size, // ROZMIAR W BAJTACH - KLUCZOWY DO PORÓWNANIA
+          type: file.type,
+          lastModified: file.lastModified,
+        });
+
         if (!isImage && !isVideo) continue;
 
-        // Krok 1: Pobranie podpisanego linku (Presigned URL) z Twojego API Next.js
+        // Krok 1: Pobranie Presigned URL
         setUploadStatusText(`Przygotowywanie pliku ${currentFileIndex}/${totalFiles}...`);
         const uploadRequest = await fetch('/api/upload', {
           method: 'POST',
@@ -225,32 +234,42 @@ export default function GaleriaPage() {
           }),
         });
 
-        if (!uploadRequest.ok) {
-          throw new Error(`API upload zwróciło ${uploadRequest.status}`);
-        }
-
         const uploadData = await uploadRequest.json();
+        console.log(`[FRONTEND] Odpowiedź z /api/upload:`, uploadData);
+
         if (!uploadData.success || !uploadData.uploadUrl) {
           throw new Error('Nie udało się uzyskać podpisanego URL do S3');
         }
 
-        // Krok 2: BEZPOŚREDNI UPLOAD ORYGINALNEGO PLIKU DO S3
+        // Krok 2: Test z ArrayBuffer (wymuszenie poprawnego Content-Length)
         setUploadStatusText(`Wysyłanie do S3 (${currentFileIndex}/${totalFiles})...`);
+        
+        console.log(`[FRONTEND] Konwertuję plik na ArrayBuffer do wysyłki...`);
+        const arrayBuffer = await file.arrayBuffer();
+        console.log(`[FRONTEND] ArrayBuffer gotowy. Liczba bajtów: ${arrayBuffer.byteLength}`);
+
+        const finalContentType = isVideo ? 'video/mp4' : (file.type || 'application/octet-stream');
+
         const uploadRes = await fetch(uploadData.uploadUrl, {
           method: 'PUT',
           headers: {
-            'Content-Type': file.type || (isVideo ? 'video/mp4' : 'application/octet-stream'),
+            'Content-Type': finalContentType,
           },
-          body: file, // Wysyłamy surowy, oryginalny plik z dźwiękiem
+          body: arrayBuffer, // Wysyłamy bufor, a nie surowy strumień pliku
         });
 
+        console.log(`[FRONTEND] Status odpowiedzi z S3 (PUT):`, uploadRes.status, uploadRes.statusText);
+
         if (!uploadRes.ok) {
+          const errorText = await uploadRes.text();
+          console.error(`[FRONTEND] Błąd S3 szczegóły:`, errorText);
           throw new Error(`Upload do S3 nie powiódł się: ${uploadRes.status}`);
         }
 
         const uploadedUrl = uploadData.publicUrl;
+        console.log(`[FRONTEND] Plik wgrany pomyślnie. URL: ${uploadedUrl}`);
 
-        // Krok 3: Zapisanie informacji o pliku w bazie danych
+        // Krok 3: Zapis w bazie danych
         await fetch('/api/media', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -261,7 +280,7 @@ export default function GaleriaPage() {
           }),
         });
 
-        // Krok 4: Wygenerowanie miniatury do podglądu w galerii
+        // Krok 4: Miniaturka
         if (isImage) {
           try {
             const { thumb, full } = await processUploadedImage(file);
@@ -293,7 +312,7 @@ export default function GaleriaPage() {
         }
       }
     } catch (fileError) {
-      console.error('Błąd podczas przesyłania plików:', fileError);
+      console.error('[FRONTEND] Błąd podczas przesyłania plików:', fileError);
     } finally {
       setMediaItems((prev) => [...processedItems, ...prev]);
       setIsUploading(false);

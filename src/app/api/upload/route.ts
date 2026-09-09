@@ -12,22 +12,27 @@ const s3Client = new S3Client({
 
 export async function POST(request: Request) {
   try {
-    const { filename, contentType } = await request.json();
+    const body = await request.json();
+    const { filename, contentType } = body;
+
+    console.log(`[BACKEND API] Otrzymano żądanie presigned URL dla:`, { filename, contentType });
 
     const key = `${Date.now()}-${filename}`;
 
     const command = new PutObjectCommand({
       Bucket: process.env.AWS_S3_BUCKET_NAME!,
       Key: key,
-      ContentType: contentType, // <--- KLUCZOWE: musi być przekazane tutaj!
+      ContentType: contentType,
     });
 
     const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
     const publicUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
 
+    console.log(`[BACKEND API] Wygenerowano pomyślnie URL dla klucza: ${key}`);
+
     return NextResponse.json({ success: true, uploadUrl, publicUrl });
   } catch (error) {
-    console.error("Błąd generowania presigned URL:", error);
+    console.error("[BACKEND API] Błąd generowania presigned URL:", error);
     return NextResponse.json({ success: false, error: "Błąd serwera" }, { status: 500 });
   }
 }
