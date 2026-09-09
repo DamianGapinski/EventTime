@@ -167,7 +167,7 @@ export default function GaleriaPage() {
         '-c:a', 'aac',
         '-b:a', '128k',
         '-map', '0:v:0',
-        '-map', '0:a:0?', // Znak zapytania sprawia, że jeśli wideo nie ma dźwięku, FFmpeg nie wywali błędu
+        '-map', '0:a:0?', // Ten znak zapytania zabezpiecza przed błędem, gdyby film nie miał ścieżki audio
         '-movflags', '+faststart',
         outputName,
       ]);
