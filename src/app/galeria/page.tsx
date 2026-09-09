@@ -166,6 +166,8 @@ export default function GaleriaPage() {
         '-crf', '28',
         '-c:a', 'aac',
         '-b:a', '128k',
+        '-map', '0:v:0',
+        '-map', '0:a:0?', // Znak zapytania sprawia, że jeśli wideo nie ma dźwięku, FFmpeg nie wywali błędu
         '-movflags', '+faststart',
         outputName,
       ]);
