@@ -197,6 +197,7 @@ export default function GaleriaPage() {
   // BEZPOŚREDNI UPLOAD PLIKU DO S3 (BEZ FFmpeg)
   // ==========================================
   const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    console.log("=== ROZPOCZĘTO UPLOAD ===")
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -245,17 +246,13 @@ export default function GaleriaPage() {
         
         console.log(`[FRONTEND] Konwertuję plik na ArrayBuffer...`);
         const arrayBuffer = await file.arrayBuffer();
-        console.log(`[FRONTEND] ArrayBuffer gotowy. Długość bufora: ${arrayBuffer.byteLength} bajtów`);
-
-        const finalContentType = isVideo ? 'video/mp4' : (file.type || 'application/octet-stream');
-
-        const uploadRes = await fetch(uploadData.uploadUrl, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': finalContentType,
-          },
-          body: arrayBuffer, // Wysyłamy bufor, co wymusza poprawny nagłówek Content-Length
-        });
+const uploadRes = await fetch(uploadData.uploadUrl, {
+  method: 'PUT',
+  headers: {
+    'Content-Type': file.type || 'video/mp4',
+  },
+  body: arrayBuffer,
+});
 
         console.log(`[FRONTEND] Status odpowiedzi z S3 (PUT):`, uploadRes.status, uploadRes.statusText);
 
