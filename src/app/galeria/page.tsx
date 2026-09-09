@@ -545,6 +545,7 @@ export default function GaleriaPage() {
                   src={selectedMedia.src}
                   controls
                   playsInline
+                  autoPlay // Dodanie autoPlay wymusza start
                   preload="auto"
                   className="reel-media"
                 />
