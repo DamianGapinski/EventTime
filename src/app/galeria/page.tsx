@@ -6,6 +6,8 @@ import { processUploadedImage } from '@/lib/imageOptimizer';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Image as GalleryIcon, Gamepad2, Mail } from 'lucide-react';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { toBlobURL, fetchFile } from '@ffmpeg/util';
 
 interface Comment {
   id: string;
@@ -103,12 +105,95 @@ export default function GaleriaPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatusText, setUploadStatusText] = useState('');
 
+  const [ffmpeg, setFfmpeg] = useState<FFmpeg | null>(null);
+  const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
+
   const navLinks = [
     { href: '/', icon: Home, label: 'Home' },
     { href: '/galeria', icon: GalleryIcon, label: 'Galeria' },
     { href: '/games', icon: Gamepad2, label: 'Gry' },
     { href: '/contact', icon: Mail, label: 'Kontakt' },
   ];
+
+  // Inicjalizacja FFmpeg w tle
+  useEffect(() => {
+    const loadFfmpeg = async () => {
+      try {
+        const ffmpegInstance = new FFmpeg();
+        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+        
+        await ffmpegInstance.load({
+          coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+          wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+        });
+
+        setFfmpeg(ffmpegInstance);
+        setFfmpegLoaded(true);
+      } catch (err) {
+        console.error('Błąd ładowania FFmpeg:', err);
+      }
+    };
+
+    loadFfmpeg();
+  }, []);
+
+  const transcodeVideoWithAudio = async (
+    file: File,
+    onProgress: (progress: number) => void
+  ): Promise<File> => {
+    if (!ffmpeg || !ffmpegLoaded) {
+      return file; // Jeśli ffmpeg nie załadowany, zwracamy oryginał
+    }
+
+    try {
+      const inputName = 'input_' + Date.now() + '.' + file.name.split('.').pop();
+      const outputName = 'output_' + Date.now() + '.mp4';
+
+      onProgress(10);
+      await ffmpeg.writeFile(inputName, await fetchFile(file));
+
+      ffmpeg.on('progress', ({ progress }) => {
+        // Prprogress od 0 do 1 mapujemy na zakres 15-85%
+        const percent = Math.min(Math.round(progress * 70) + 15, 85);
+        onProgress(percent);
+      });
+
+      // Transkodowanie z zachowaniem audio (AAC) i stabilnym kodekiem wideo (H.264)
+      await ffmpeg.exec([
+        '-i', inputName,
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-crf', '28',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-movflags', '+faststart',
+        outputName,
+      ]);
+
+      onProgress(90);
+      const data = (await ffmpeg.readFile(outputName)) as Uint8Array;
+      const transcodedBlob = new Blob([data.buffer as ArrayBuffer], { type: 'video/mp4' });
+      const transcodedFile = new File(
+        [transcodedBlob],
+        file.name.replace(/\.[^/.]+$/, '') + '_optimized.mp4',
+        { type: 'video/mp4' }
+      );
+
+      // Czyszczenie plików z wirtualnego systemu plików ffmpeg
+      try {
+        await ffmpeg.deleteFile(inputName);
+        await ffmpeg.deleteFile(outputName);
+      } catch (cleanupErr) {
+        console.warn('Wyczyszczenie plików ffmpeg nie powiodło się:', cleanupErr);
+      }
+
+      onProgress(95);
+      return transcodedFile;
+    } catch (err) {
+      console.error('Błąd podczas transkodowania wideo przez FFmpeg, używam pliku źródłowego:', err);
+      return file;
+    }
+  };
 
   const fetchMedia = async () => {
     try {
@@ -182,15 +267,23 @@ export default function GaleriaPage() {
 
     try {
       for (let i = 0; i < fileArray.length; i++) {
-        const originalFile = fileArray[i];
+        let originalFile = fileArray[i];
         const currentFileIndex = i + 1;
         const isVideo = originalFile.type.startsWith('video/');
         const isImage = originalFile.type.startsWith('image/');
 
         if (!isImage && !isVideo) continue;
 
-        setUploadStatusText(`Wysyłanie pliku ${currentFileIndex}/${totalFiles}...`);
-        setUploadProgress(Math.round((i / totalFiles) * 100));
+        // Jeśli to wideo, optymalizujemy/transkodujemy je z zachowaniem dźwięku
+        if (isVideo) {
+          setUploadStatusText(`Optymalizacja wideo ${currentFileIndex}/${totalFiles} (FFmpeg)...`);
+          originalFile = await transcodeVideoWithAudio(originalFile, (p) => {
+            setUploadProgress(p);
+          });
+        } else {
+          setUploadStatusText(`Wysyłanie pliku ${currentFileIndex}/${totalFiles}...`);
+          setUploadProgress(Math.round((i / totalFiles) * 100));
+        }
 
         const uploadRequest = await fetch('/api/upload', {
           method: 'POST',
