@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Image as GalleryIcon, Gamepad2, Mail } from 'lucide-react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import { toBlobURL, fetchFile } from '@ffmpeg/util';
 
 interface Comment {
   id: string;
@@ -28,12 +28,23 @@ interface MediaItem {
   url?: string;
 }
 
+interface ApiMediaItem {
+  id?: string | number;
+  resourceType?: string;
+  type?: string;
+  url: string;
+  authorName?: string;
+  likes?: number;
+  comments?: Comment[];
+}
+
 const generateVideoThumbnail = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
+    const videoUrl = URL.createObjectURL(file);
 
     video.preload = 'metadata';
-    video.src = URL.createObjectURL(file);
+    video.src = videoUrl;
     video.muted = true;
     video.playsInline = true;
 
@@ -43,32 +54,49 @@ const generateVideoThumbnail = (file: File): Promise<string> => {
 
     video.onseeked = () => {
       const canvas = document.createElement('canvas');
-
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
       const ctx = canvas.getContext('2d');
-
-      ctx?.drawImage(
-        video,
-        0,
-        0,
-        canvas.width,
-        canvas.height
-      );
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      }
 
       const thumbUrl = canvas.toDataURL('image/jpeg', 0.8);
-
-      URL.revokeObjectURL(video.src);
-
+      URL.revokeObjectURL(videoUrl);
       resolve(thumbUrl);
     };
 
     video.onerror = (err) => {
-      URL.revokeObjectURL(video.src);
+      URL.revokeObjectURL(videoUrl);
       reject(err);
     };
   });
+};
+
+// Komponent wyświetlający wersję aplikacji z Vercel
+const VersionBadge = () => {
+  const commitHash = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA 
+    ? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA.substring(0, 7) 
+    : 'dev-local';
+
+  return (
+    <div style={{
+      position: 'fixed',
+      bottom: '80px',
+      right: '12px',
+      background: 'rgba(0, 0, 0, 0.75)',
+      color: '#fff',
+      padding: '4px 8px',
+      fontSize: '11px',
+      borderRadius: '4px',
+      zIndex: 9999,
+      pointerEvents: 'none',
+      fontFamily: 'monospace',
+    }}>
+      v: {commitHash}
+    </div>
+  );
 };
 
 const initialMedia: MediaItem[] = [
@@ -90,242 +118,130 @@ const initialMedia: MediaItem[] = [
   },
 ];
 
-let ffmpegInstance: FFmpeg | null = null;
-
-const transcodeVideoWithAudio = async (
-  file: File,
-  onProgress?: (text: string) => void
-): Promise<File> => {
-  if (!ffmpegInstance) {
-    ffmpegInstance = new FFmpeg();
-
-    const baseURL =
-      'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-
-    onProgress?.('Ładowanie silnika wideo...');
-
-    await ffmpegInstance.load({
-      coreURL: await toBlobURL(
-        `${baseURL}/ffmpeg-core.js`,
-        'text/javascript'
-      ),
-      wasmURL: await toBlobURL(
-        `${baseURL}/ffmpeg-core.wasm`,
-        'application/wasm'
-      ),
-    });
-  }
-
-  const ffmpeg = ffmpegInstance;
-
-  const extension =
-    file.name.substring(file.name.lastIndexOf('.')) || '.mp4';
-
-  const inputName = `input${extension}`;
-  const outputName = 'output.mp4';
-
-  onProgress?.('Przygotowanie pliku wideo...');
-
-  // Wczytanie oryginalnego filmu do wirtualnego systemu plików FFmpeg.
-  await ffmpeg.writeFile(
-    inputName,
-    await fetchFile(file)
-  );
-
-  onProgress?.('Konwersja wideo i audio...');
-
-  /*
-    WAŻNE:
-
-    0:v:0  -> pierwszy strumień obrazu
-    0:a:0? -> pierwszy strumień audio, jeśli istnieje
-
-    Audio jest jawnie konwertowane do AAC.
-    Dzięki temu dźwięk nie powinien zostać pominięty
-    podczas transkodowania.
-  */
-
-  await ffmpeg.exec([
-    '-i',
-    inputName,
-
-    // Obraz
-    '-map',
-    '0:v:0',
-
-    // Audio
-    '-map',
-    '0:a:0?',
-
-    // H.264
-    '-c:v',
-    'libx264',
-
-    // Szybka konwersja
-    '-preset',
-    'ultrafast',
-
-    // Dobra kompatybilność
-    '-pix_fmt',
-    'yuv420p',
-
-    // AAC
-    '-c:a',
-    'aac',
-
-    // Jakość audio
-    '-b:a',
-    '128k',
-
-    // Częstotliwość audio
-    '-ar',
-    '48000',
-
-    // Stereo
-    '-ac',
-    '2',
-
-    // Szybsze rozpoczęcie odtwarzania
-    '-movflags',
-    '+faststart',
-
-    outputName,
-  ]);
-
-  onProgress?.('Finalizowanie pliku...');
-
-  const data = (await ffmpeg.readFile(
-    outputName
-  )) as Uint8Array;
-
-  const arrayBuffer = new Uint8Array(data).buffer;
-
-  /*
-    Czyścimy pliki FFmpeg.
-
-    Dzięki temu kolejny film nie będzie korzystał
-    przypadkiem ze starych danych.
-  */
-  try {
-    await ffmpeg.deleteFile(inputName);
-    await ffmpeg.deleteFile(outputName);
-  } catch (cleanupError) {
-    console.warn(
-      'Nie udało się wyczyścić pamięci FFmpeg:',
-      cleanupError
-    );
-  }
-
-  return new File(
-    [arrayBuffer],
-    file.name.replace(/\.[^/.]+$/, '') + '.mp4',
-    {
-      type: 'video/mp4',
-    }
-  );
-};
-
 export default function GaleriaPage() {
-  const [mediaItems, setMediaItems] =
-    useState<MediaItem[]>(initialMedia);
-
-  const [selectedMedia, setSelectedMedia] =
-    useState<MediaItem | null>(null);
-
-  const [isCommentsOpen, setIsCommentsOpen] =
-    useState(false);
-
-  const [newCommentText, setNewCommentText] =
-    useState('');
-
-  const [isUploading, setIsUploading] =
-    useState(false);
-
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>(initialMedia);
+  const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
+  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
+  const [newCommentText, setNewCommentText] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
   const pathname = usePathname();
+  const [isSlideshowActive, setIsSlideshowActive] = useState(false);
+  const [errorImages, setErrorImages] = useState<Record<string, boolean>>({});
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatusText, setUploadStatusText] = useState('');
 
-  const [isSlideshowActive, setIsSlideshowActive] =
-    useState(false);
-
-  const [errorImages, setErrorImages] =
-    useState<Record<string, boolean>>({});
-
-  const [uploadProgress, setUploadProgress] =
-    useState(0);
-
-  const [uploadStatusText, setUploadStatusText] =
-    useState('');
+  const [ffmpeg, setFfmpeg] = useState<FFmpeg | null>(null);
+  const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
 
   const navLinks = [
-    {
-      href: '/',
-      icon: Home,
-      label: 'Home',
-    },
-    {
-      href: '/galeria',
-      icon: GalleryIcon,
-      label: 'Galeria',
-    },
-    {
-      href: '/games',
-      icon: Gamepad2,
-      label: 'Gry',
-    },
-    {
-      href: '/contact',
-      icon: Mail,
-      label: 'Kontakt',
-    },
+    { href: '/', icon: Home, label: 'Home' },
+    { href: '/galeria', icon: GalleryIcon, label: 'Galeria' },
+    { href: '/games', icon: Gamepad2, label: 'Gry' },
+    { href: '/contact', icon: Mail, label: 'Kontakt' },
   ];
+
+  // Inicjalizacja FFmpeg w tle
+  useEffect(() => {
+    const loadFfmpeg = async () => {
+      try {
+        const ffmpegInstance = new FFmpeg();
+        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+        
+        await ffmpegInstance.load({
+          coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+          wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+        });
+
+        setFfmpeg(ffmpegInstance);
+        setFfmpegLoaded(true);
+      } catch (err) {
+        console.error('Błąd ładowania FFmpeg:', err);
+      }
+    };
+
+    loadFfmpeg();
+  }, []);
+
+  const transcodeVideoWithAudio = async (
+    file: File,
+    onProgress: (progress: number) => void
+  ): Promise<File> => {
+    if (!ffmpeg || !ffmpegLoaded) {
+      return file; 
+    }
+
+    try {
+      const inputName = 'input_' + Date.now() + '.' + file.name.split('.').pop();
+      const outputName = 'output_' + Date.now() + '.mp4';
+
+      onProgress(10);
+      await ffmpeg.writeFile(inputName, await fetchFile(file));
+
+      ffmpeg.on('progress', ({ progress }) => {
+        const percent = Math.min(Math.round(progress * 70) + 15, 85);
+        onProgress(percent);
+      });
+
+      // Bezpieczna komenda transkodowania z zachowaniem audio i obsługą braku ścieżki dźwiękowej
+      await ffmpeg.exec([
+        '-i', inputName,
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-crf', '28',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-map', '0:v:0',
+        '-map', '0:a:0?',
+        '-movflags', '+faststart',
+        outputName,
+      ]);
+
+      onProgress(90);
+      const data = (await ffmpeg.readFile(outputName)) as Uint8Array;
+      const transcodedBlob = new Blob([data.buffer as ArrayBuffer], { type: 'video/mp4' });
+      const transcodedFile = new File(
+        [transcodedBlob],
+        file.name.replace(/\.[^/.]+$/, '') + '_optimized.mp4',
+        { type: 'video/mp4' }
+      );
+
+      try {
+        await ffmpeg.deleteFile(inputName);
+        await ffmpeg.deleteFile(outputName);
+      } catch (cleanupErr) {
+        console.warn('Wyczyszczenie plików ffmpeg nie powiodło się:', cleanupErr);
+      }
+
+      onProgress(95);
+      return transcodedFile;
+    } catch (err) {
+      console.error('Błąd podczas transkodowania wideo przez FFmpeg, używam pliku źródłowego:', err);
+      return file;
+    }
+  };
 
   const fetchMedia = async () => {
     try {
-      const res = await fetch('/api/media', {
-        cache: 'no-store',
-      });
-
+      const res = await fetch('/api/media', { cache: 'no-store' });
       const data = await res.json();
 
-      if (
-        data.success &&
-        Array.isArray(data.data) &&
-        data.data.length > 0
-      ) {
-        const fetchedItems: MediaItem[] =
-          data.data.map(
-            (item: any, idx: number) => ({
-              id:
-                item.id ||
-                `fetched-${idx}-${Date.now()}`,
-
-              type:
-                item.resourceType === 'video' ||
-                item.type === 'video'
-                  ? 'video'
-                  : 'image',
-
-              src: item.url,
-
-              thumbSrc: item.url,
-
-              alt: 'Zdjęcie z wydarzenia',
-
-              authorName:
-                item.authorName || 'Gość',
-
-              likes: item.likes || 0,
-
-              comments: item.comments || [],
-            })
-          );
-
+      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+        const fetchedItems: MediaItem[] = data.data.map(
+          (item: ApiMediaItem, idx: number) => ({
+            id: item.id || `fetched-${idx}-${Date.now()}`,
+            type: item.resourceType === 'video' || item.type === 'video' ? 'video' : 'image',
+            src: item.url,
+            thumbSrc: item.url,
+            alt: 'Zdjęcie z wydarzenia',
+            authorName: item.authorName || 'Gość',
+            likes: item.likes || 0,
+            comments: item.comments || [],
+          })
+        );
         setMediaItems(fetchedItems);
       }
     } catch (err) {
-      console.error(
-        'Błąd podczas pobierania galerii:',
-        err
-      );
+      console.error('Błąd podczas pobierania galerii:', err);
     }
   };
 
@@ -335,1040 +251,437 @@ export default function GaleriaPage() {
 
   const nextSlide = () => {
     if (!selectedMedia) return;
-
     setMediaItems((currentItems) => {
-      const currentIndex =
-        currentItems.findIndex(
-          (m) => m.id === selectedMedia.id
-        );
-
-      const nextIndex =
-        (currentIndex + 1) %
-        currentItems.length;
-
-      setSelectedMedia(
-        currentItems[nextIndex]
-      );
-
+      const currentIndex = currentItems.findIndex((m) => m.id === selectedMedia.id);
+      const nextIndex = (currentIndex + 1) % currentItems.length;
+      setSelectedMedia(currentItems[nextIndex]);
       return currentItems;
     });
   };
 
   const prevSlide = () => {
     if (!selectedMedia) return;
-
     setMediaItems((currentItems) => {
-      const currentIndex =
-        currentItems.findIndex(
-          (m) => m.id === selectedMedia.id
-        );
-
-      const prevIndex =
-        (currentIndex - 1 + currentItems.length) %
-        currentItems.length;
-
-      setSelectedMedia(
-        currentItems[prevIndex]
-      );
-
+      const currentIndex = currentItems.findIndex((m) => m.id === selectedMedia.id);
+      const prevIndex = (currentIndex - 1 + currentItems.length) % currentItems.length;
+      setSelectedMedia(currentItems[prevIndex]);
       return currentItems;
     });
   };
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-
-    if (
-      selectedMedia &&
-      isSlideshowActive
-    ) {
+    if (selectedMedia && isSlideshowActive) {
       interval = setInterval(() => {
         nextSlide();
       }, 4000);
     }
-
     return () => clearInterval(interval);
-  }, [
-    selectedMedia,
-    isSlideshowActive,
-  ]);
+  }, [selectedMedia, isSlideshowActive]);
 
-  const handleFileUpload = async (
-    e: ChangeEvent<HTMLInputElement>
-  ) => {
+  // ==========================================
+  // FUNKCJA OBSŁUGUJĄCA BEZPOŚREDNI UPLOAD DO S3
+  // ==========================================
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-
-    if (!files || files.length === 0) {
-      return;
-    }
+    if (!files || files.length === 0) return;
 
     setIsUploading(true);
     setUploadProgress(0);
 
     const processedItems: MediaItem[] = [];
-
-    const totalFiles = files.length;
+    const fileArray = Array.from(files);
+    const totalFiles = fileArray.length;
 
     try {
-      for (
-        const [
-          index,
-          originalFile,
-        ] of Array.from(files).entries()
-      ) {
-        const currentFileIndex = index + 1;
+      for (let i = 0; i < fileArray.length; i++) {
+        let originalFile = fileArray[i];
+        const currentFileIndex = i + 1;
+        const isVideo = originalFile.type.startsWith('video/');
+        const isImage = originalFile.type.startsWith('image/');
 
-        const isVideo =
-          originalFile.type.startsWith(
-            'video/'
-          );
+        if (!isImage && !isVideo) continue;
 
-        const isImage =
-          originalFile.type.startsWith(
-            'image/'
-          );
-
-        if (!isImage && !isVideo) {
-          continue;
+        // Krok 1: Jeśli to wideo, optymalizujemy je w przeglądarce przez FFmpeg (wraz z audio)
+        if (isVideo) {
+          setUploadStatusText(`Optymalizacja wideo ${currentFileIndex}/${totalFiles} (FFmpeg)...`);
+          originalFile = await transcodeVideoWithAudio(originalFile, (p) => {
+            setUploadProgress(p);
+          });
+        } else {
+          setUploadStatusText(`Przygotowanie pliku ${currentFileIndex}/${totalFiles}...`);
+          setUploadProgress(Math.round((i / totalFiles) * 100));
         }
 
-        setUploadStatusText(
-          `Przygotowanie pliku ${currentFileIndex}/${totalFiles}...`
-        );
+        // Krok 2: Pobranie podpisanego linku (Presigned URL) z Twojego API Next.js
+        const uploadRequest = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: originalFile.name,
+            contentType: originalFile.type || (isVideo ? 'video/mp4' : 'application/octet-stream'),
+          }),
+        });
 
-        setUploadProgress(
-          Math.round(
-            (index / totalFiles) * 100
-          )
-        );
+        if (!uploadRequest.ok) {
+          throw new Error(`API upload zwróciło ${uploadRequest.status}`);
+        }
 
-        try {
-          /*
-            ---------------------------------------------------------
-            1. PRZYGOTOWANIE PLIKU
-            ---------------------------------------------------------
+        const uploadData = await uploadRequest.json();
+        if (!uploadData.success || !uploadData.uploadUrl) {
+          throw new Error('Nie udało się uzyskać podpisanego URL do S3');
+        }
 
-            Zdjęcie -> wysyłamy oryginał
+        // Krok 3: BEZPOŚREDNI UPLOAD PLIKU DO S3 (omijając serwer aplikacji)
+        setUploadStatusText(`Wysyłanie bezpośrednio do S3 (${currentFileIndex}/${totalFiles})...`);
+        const uploadRes = await fetch(uploadData.uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': originalFile.type || (isVideo ? 'video/mp4' : 'application/octet-stream'),
+          },
+          body: originalFile, // Plik leci prosto do Amazona S3
+        });
 
-            Film -> najpierw:
-                     FFmpeg
-                     ↓
-                     H.264 + AAC
-                     ↓
-                     MP4
-          */
+        if (!uploadRes.ok) {
+          throw new Error(`Upload do S3 nie powiódł się: ${uploadRes.status}`);
+        }
 
-          let fileToUpload = originalFile;
+        const uploadedUrl = uploadData.publicUrl;
 
-          if (isVideo) {
-            fileToUpload =
-              await transcodeVideoWithAudio(
-                originalFile,
-                (text) =>
-                  setUploadStatusText(text)
-              );
-          }
+        // Krok 4: Zapisanie informacji o pliku w bazie danych
+        await fetch('/api/media', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: uploadedUrl,
+            type: isVideo ? 'video' : 'image',
+            authorName: 'Gość',
+          }),
+        });
 
-          /*
-            ---------------------------------------------------------
-            2. POBRANIE PODPISANEGO URL DO S3
-            ---------------------------------------------------------
-          */
-
-          setUploadStatusText(
-            `Wysyłanie pliku ${currentFileIndex}/${totalFiles}...`
-          );
-
-          const uploadRequest =
-            await fetch('/api/upload', {
-              method: 'POST',
-
-              headers: {
-                'Content-Type':
-                  'application/json',
-              },
-
-              body: JSON.stringify({
-                filename:
-                  fileToUpload.name,
-
-                contentType:
-                  fileToUpload.type ||
-                  (isVideo
-                    ? 'video/mp4'
-                    : 'application/octet-stream'),
-              }),
-            });
-
-          if (!uploadRequest.ok) {
-            throw new Error(
-              `API upload zwróciło ${uploadRequest.status}`
-            );
-          }
-
-          const uploadData =
-            await uploadRequest.json();
-
-          if (
-            !uploadData.success ||
-            !uploadData.uploadUrl
-          ) {
-            throw new Error(
-              'Nie udało się uzyskać podpisanego URL do S3'
-            );
-          }
-
-          /*
-            ---------------------------------------------------------
-            3. JEDEN UPLOAD DO S3
-            ---------------------------------------------------------
-
-            Bardzo ważne:
-
-            W przypadku filmu wysyłamy tutaj już
-            przetworzony plik MP4 z audio.
-
-            Nie wysyłamy wcześniej oryginału.
-          */
-
-          const uploadRes =
-            await fetch(
-              uploadData.uploadUrl,
-              {
-                method: 'PUT',
-
-                headers: {
-                  'Content-Type':
-                    fileToUpload.type ||
-                    (isVideo
-                      ? 'video/mp4'
-                      : 'application/octet-stream'),
-                },
-
-                body: fileToUpload,
-              }
-            );
-
-          if (!uploadRes.ok) {
-            throw new Error(
-              `Upload do S3 nie powiódł się: ${uploadRes.status} ${uploadRes.statusText}`
-            );
-          }
-
-          const uploadedUrl =
-            uploadData.publicUrl;
-
-          /*
-            ---------------------------------------------------------
-            4. ZAPIS DO BAZY
-            ---------------------------------------------------------
-          */
-
-          const mediaResponse =
-            await fetch('/api/media', {
-              method: 'POST',
-
-              headers: {
-                'Content-Type':
-                  'application/json',
-              },
-
-              body: JSON.stringify({
-                url: uploadedUrl,
-
-                type: isVideo
-                  ? 'video'
-                  : 'image',
-
-                authorName: 'Gość',
-              }),
-            });
-
-          if (!mediaResponse.ok) {
-            console.warn(
-              'Plik został wysłany do S3, ale zapis do bazy nie powiódł się:',
-              mediaResponse.status
-            );
-          }
-
-          /*
-            ---------------------------------------------------------
-            5. MINIATURA I DODANIE DO GALERII
-            ---------------------------------------------------------
-          */
-
-          if (isImage) {
-            setUploadStatusText(
-              'Generowanie miniatury zdjęcia...'
-            );
-
-            try {
-              const {
-                thumb,
-                full,
-              } =
-                await processUploadedImage(
-                  originalFile
-                );
-
-              processedItems.push({
-                id:
-                  Date.now() +
-                  Math.random(),
-
-                type: 'image',
-
-                src:
-                  uploadedUrl ||
-                  full,
-
-                thumbSrc:
-                  uploadedUrl ||
-                  thumb,
-
-                alt:
-                  originalFile.name,
-
-                authorName:
-                  'Gość',
-
-                likes: 0,
-
-                comments: [],
-              });
-            } catch (imageError) {
-              console.error(
-                'Błąd miniatury zdjęcia:',
-                imageError
-              );
-            }
-          } else {
-            setUploadStatusText(
-              'Generowanie miniatury wideo...'
-            );
-
-            const thumbUrl =
-              await generateVideoThumbnail(
-                fileToUpload
-              );
-
+        // Krok 5: Wygenerowanie lokalnej miniatury do natychmiastowego wyświetlenia w galerii
+        if (isImage) {
+          setUploadStatusText('Generowanie miniatury zdjęcia...');
+          try {
+            const { thumb, full } = await processUploadedImage(originalFile);
             processedItems.push({
-              id:
-                Date.now() +
-                Math.random(),
-
-              type: 'video',
-
-              src: uploadedUrl,
-
-              thumbSrc: thumbUrl,
-
-              alt:
-                originalFile.name,
-
-              authorName:
-                'Gość',
-
+              id: Date.now() + Math.random(),
+              type: 'image',
+              src: uploadedUrl || full,
+              thumbSrc: uploadedUrl || thumb,
+              alt: originalFile.name,
+              authorName: 'Gość',
               likes: 0,
-
               comments: [],
             });
+          } catch (imageError) {
+            console.error('Błąd miniatury zdjęcia:', imageError);
           }
-
-          setUploadProgress(
-            Math.round(
-              (currentFileIndex /
-                totalFiles) *
-                100
-            )
-          );
-        } catch (fileError) {
-          console.error(
-            `Błąd podczas przetwarzania pliku ${originalFile.name}:`,
-            fileError
-          );
+        } else {
+          setUploadStatusText('Generowanie miniatury wideo...');
+          const thumbUrl = await generateVideoThumbnail(originalFile);
+          processedItems.push({
+            id: Date.now() + Math.random(),
+            type: 'video',
+            src: uploadedUrl,
+            thumbSrc: thumbUrl,
+            alt: originalFile.name,
+            authorName: 'Gość',
+            likes: 0,
+            comments: [],
+          });
         }
+
+        setUploadProgress(Math.round((currentFileIndex / totalFiles) * 100));
       }
+    } catch (fileError) {
+      console.error('Błąd podczas przetwarzania plików:', fileError);
     } finally {
-      setMediaItems((prev) => [
-        ...processedItems,
-        ...prev,
-      ]);
-
+      setMediaItems((prev) => [...processedItems, ...prev]);
       setIsUploading(false);
-
       setUploadProgress(0);
-
       setUploadStatusText('');
-
       e.target.value = '';
     }
   };
 
-  const handleToggleLike = (
-    id: string | number
-  ) => {
+  const handleToggleLike = (id: string | number) => {
     setMediaItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
-          const isLiked =
-            !item.isLiked;
-
-          const likes = isLiked
-            ? item.likes + 1
-            : item.likes - 1;
-
-          const updated = {
-            ...item,
-            likes,
-            isLiked,
-          };
-
-          if (
-            selectedMedia?.id === id
-          ) {
+          const isLiked = !item.isLiked;
+          const likes = isLiked ? item.likes + 1 : item.likes - 1;
+          const updated = { ...item, likes, isLiked };
+          if (selectedMedia?.id === id) {
             setSelectedMedia(updated);
           }
-
           return updated;
         }
-
         return item;
       })
     );
   };
 
-  const handleAddComment = (
-    e: React.FormEvent
-  ) => {
+  const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (
-      !newCommentText.trim() ||
-      !selectedMedia
-    ) {
-      return;
-    }
+    if (!newCommentText.trim() || !selectedMedia) return;
 
     const newComment: Comment = {
-      id:
-        Date.now().toString(),
-
-      text:
-        newCommentText.trim(),
-
-      createdAt:
-        new Date().toLocaleTimeString(
-          [],
-          {
-            hour: '2-digit',
-            minute: '2-digit',
-          }
-        ),
+      id: Date.now().toString(),
+      text: newCommentText.trim(),
+      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
     setMediaItems((prev) =>
       prev.map((item) => {
-        if (
-          item.id ===
-          selectedMedia.id
-        ) {
+        if (item.id === selectedMedia.id) {
           const updated = {
             ...item,
-
-            comments: [
-              ...item.comments,
-              newComment,
-            ],
+            comments: [...item.comments, newComment],
           };
-
-          setSelectedMedia(
-            updated
-          );
-
+          setSelectedMedia(updated);
           return updated;
         }
-
         return item;
       })
     );
-
     setNewCommentText('');
   };
 
   const closeModal = () => {
     setSelectedMedia(null);
-
     setIsCommentsOpen(false);
-
     setIsSlideshowActive(false);
   };
 
   const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
     <>
       <div className="gallery-container">
-
         <div className="gallery-header">
-
-          <h1>
-            Galeria Wspomnień
-          </h1>
-
+          <h1>Galeria Wspomnień</h1>
           <section className="upload-section flex flex-col items-center gap-2">
-
             <label className="upload-button cursor-pointer">
-
-              {isUploading
-                ? uploadStatusText
-                : 'Prześlij wspomnienie'}
-
+              {isUploading ? uploadStatusText : 'Prześlij wspomnienie'}
               <input
                 type="file"
                 accept="image/*,video/*"
                 multiple
                 disabled={isUploading}
-                onChange={
-                  handleFileUpload
-                }
+                onChange={handleFileUpload}
                 className="file-input hidden"
               />
-
             </label>
-
-            {/* Pasek postępu */}
-
             {isUploading && (
               <div className="w-full max-xs:w-64 w-72 bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner mt-2">
-
                 <div
                   className="bg-blue-600 h-full transition-all duration-200 ease-out"
-                  style={{
-                    width: `${uploadProgress}%`,
-                  }}
+                  style={{ width: `${uploadProgress}%` }}
                 />
-
               </div>
             )}
-
           </section>
-
         </div>
 
-        {/* Siatka Masonry Grid */}
-
         <div className="masonry-grid">
-
           {mediaItems
-            .filter(
-              (item) =>
-                !errorImages[item.id]
-            )
+            .filter((item) => !errorImages[item.id])
             .map((item) => (
-
               <div
                 key={item.id}
                 className="masonry-item"
-
                 onClick={() => {
                   setSelectedMedia(item);
-
-                  setIsSlideshowActive(
-                    false
-                  );
+                  setIsSlideshowActive(false);
                 }}
               >
-
-                {item.type ===
-                'image' ? (
-
+                {item.type === 'image' ? (
                   <Image
-                    src={
-                      item.thumbSrc ||
-                      item.src
-                    }
-
+                    src={item.thumbSrc || item.src}
                     alt={item.alt}
-
                     width={400}
-
                     height={600}
-
                     unoptimized
-
                     className="gallery-thumb"
-
                     onError={() => {
-                      setErrorImages(
-                        (prev) => ({
-                          ...prev,
-                          [item.id]:
-                            true,
-                        })
-                      );
+                      setErrorImages((prev) => ({ ...prev, [item.id]: true }));
                     }}
                   />
-
                 ) : (
-
                   <div className="video-thumb-container">
-
                     <video
-                      src={item.src}
+                      src={item.thumbSrc || item.src}
                       preload="metadata"
                       className="gallery-thumb object-cover"
-
                       onError={() => {
-                        setErrorImages(
-                          (prev) => ({
-                            ...prev,
-                            [item.id]:
-                              true,
-                          })
-                        );
+                        setErrorImages((prev) => ({ ...prev, [item.id]: true }));
                       }}
                     />
-
                     <div className="play-overlay">
-
-                      <span className="play-icon">
-                        ▶
-                      </span>
-
+                      <span className="play-icon">▶</span>
                     </div>
-
                   </div>
                 )}
-
               </div>
             ))}
-
         </div>
 
-        {/* Pełnoekranowy widok Reel Style */}
-
         {selectedMedia && (
-
           <div
             className="reel-modal-overlay"
-
             onTouchStart={(e) => {
-              (
-                e.currentTarget as any
-              ).touchStartX =
+              (e.currentTarget as HTMLElement & { touchStartX?: number }).touchStartX =
                 e.touches[0].clientX;
             }}
-
             onTouchEnd={(e) => {
+              const target = e.currentTarget as HTMLElement & { touchStartX?: number };
+              const startX = target.touchStartX;
+              if (startX === undefined) return;
 
-              const startX =
-                (
-                  e.currentTarget as any
-                ).touchStartX;
-
-              if (
-                startX ===
-                undefined
-              ) {
-                return;
-              }
-
-              const endX =
-                e.changedTouches[0]
-                  .clientX;
-
-              const diffX =
-                startX - endX;
-
+              const endX = e.changedTouches[0].clientX;
+              const diffX = startX - endX;
               const threshold = 50;
 
-              if (
-                diffX >
-                threshold
-              ) {
+              if (diffX > threshold) {
                 nextSlide();
-              } else if (
-                diffX <
-                -threshold
-              ) {
+              } else if (diffX < -threshold) {
                 prevSlide();
               }
             }}
           >
-
-            <button
-              className="reel-close-btn"
-              onClick={closeModal}
-            >
+            <button className="reel-close-btn" onClick={closeModal}>
               ✕
             </button>
 
             <div
               className="reel-media-wrapper reel-media-animated"
-              key={
-                selectedMedia?.id
-              }
-
-              onClick={() =>
-                setIsCommentsOpen(
-                  false
-                )
-              }
+              key={selectedMedia.id}
+              onClick={() => setIsCommentsOpen(false)}
             >
-
-              {selectedMedia.type ===
-              'image' ? (
-
+              {selectedMedia.type === 'image' ? (
                 <Image
-                  key={
-                    selectedMedia.src
-                  }
-
-                  src={
-                    selectedMedia.src
-                  }
-
-                  alt={
-                    selectedMedia.alt
-                  }
-
+                  key={selectedMedia.src}
+                  src={selectedMedia.src}
+                  alt={selectedMedia.alt}
                   fill
-
                   unoptimized
-
                   className="reel-media"
                 />
-
-              ) : selectedMedia.src &&
-                selectedMedia.src.trim() !==
-                  '' ? (
-
+              ) : selectedMedia.src && selectedMedia.src.trim() !== '' ? (
                 <video
-                  key={
-                    selectedMedia.src
-                  }
-
-                  src={
-                    selectedMedia.src
-                  }
-
+                  key={selectedMedia.src}
+                  src={selectedMedia.src}
                   controls
-
                   playsInline
-
                   preload="auto"
-
                   className="reel-media"
-
-                  onError={(e) =>
-                    console.error(
-                      'Błąd odtwarzacza wideo:',
-                      e.currentTarget
-                        .error
-                    )
-                  }
                 />
-
               ) : (
-
                 <div className="flex items-center justify-center h-full text-white">
-
-                  Brak pliku wideo
-                  do wyświetlenia
-
+                  Brak pliku wideo do wyświetlenia
                 </div>
-
               )}
-
             </div>
 
             <div className="reel-author-info">
-
               <div className="author-avatar">
-
-                {(
-                  selectedMedia.authorName ||
-                  'D'
-                )[0].toUpperCase()}
-
+                {(selectedMedia.authorName || 'D')[0].toUpperCase()}
               </div>
-
-              <span className="author-name">
-
-                {selectedMedia.authorName ||
-                  'Damian'}
-
-              </span>
-
+              <span className="author-name">{selectedMedia.authorName || 'Damian'}</span>
             </div>
 
             <div className="reel-actions">
-
               <button
                 className="action-btn slideshow-toggle-square-btn"
-
-                onClick={() =>
-                  setIsSlideshowActive(
-                    (prev) =>
-                      !prev
-                  )
-                }
-
-                title={
-                  isSlideshowActive
-                    ? 'Zatrzymaj pokaz slajdów'
-                    : 'Rozpocznij pokaz slajdów'
-                }
+                onClick={() => setIsSlideshowActive((prev) => !prev)}
+                title={isSlideshowActive ? 'Zatrzymaj pokaz slajdów' : 'Rozpocznij pokaz slajdów'}
               >
-
-                <span className="icon">
-
-                  {isSlideshowActive
-                    ? '⏸'
-                    : '▶'}
-
-                </span>
-
+                <span className="icon">{isSlideshowActive ? '⏸' : '▶'}</span>
               </button>
 
               <button
-                className={`action-btn ${
-                  selectedMedia.isLiked
-                    ? 'liked'
-                    : ''
-                }`}
-
-                onClick={() =>
-                  handleToggleLike(
-                    selectedMedia.id
-                  )
-                }
+                className={`action-btn ${selectedMedia.isLiked ? 'liked' : ''}`}
+                onClick={() => handleToggleLike(selectedMedia.id)}
               >
-
-                <span className="icon">
-                  ⭐
-                </span>
-
-                <span className="count">
-                  {selectedMedia.likes}
-                </span>
-
+                <span className="icon">⭐</span>
+                <span className="count">{selectedMedia.likes}</span>
               </button>
 
               <button
                 className="action-btn"
-
-                onClick={() =>
-                  setIsCommentsOpen(
-                    (prev) =>
-                      !prev
-                  )
-                }
+                onClick={() => setIsCommentsOpen((prev) => !prev)}
               >
-
-                <span className="icon">
-                  💬
-                </span>
-
-                <span className="count">
-                  {
-                    selectedMedia
-                      .comments.length
-                  }
-                </span>
-
+                <span className="icon">💬</span>
+                <span className="count">{selectedMedia.comments.length}</span>
               </button>
-
             </div>
 
-            <div
-              className={`bottom-comments-sheet ${
-                isCommentsOpen
-                  ? 'open'
-                  : ''
-              }`}
-            >
-
+            <div className={`bottom-comments-sheet ${isCommentsOpen ? 'open' : ''}`}>
               <div className="sheet-header">
-
-                <span>
-                  Komentarze (
-                  {
-                    selectedMedia
-                      .comments.length
-                  }
-                  )
-                </span>
-
-                <button
-                  className="sheet-close"
-
-                  onClick={() =>
-                    setIsCommentsOpen(
-                      false
-                    )
-                  }
-                >
+                <span>Komentarze ({selectedMedia.comments.length})</span>
+                <button className="sheet-close" onClick={() => setIsCommentsOpen(false)}>
                   ✕
                 </button>
-
               </div>
 
               <div className="sheet-comments-list">
-
-                {selectedMedia.comments
-                  .length === 0 ? (
-
-                  <p className="no-comments">
-                    Brak komentarzy.
-                    Napisz coś!
-                  </p>
-
+                {selectedMedia.comments.length === 0 ? (
+                  <p className="no-comments">Brak komentarzy. Napisz coś!</p>
                 ) : (
-
-                  selectedMedia.comments.map(
-                    (comment) => (
-
-                      <div
-                        key={
-                          comment.id
-                        }
-
-                        className="sheet-comment-item"
-                      >
-
-                        <p className="comment-text">
-
-                          {
-                            comment.text
-                          }
-
-                        </p>
-
-                        <span className="comment-time">
-
-                          {
-                            comment.createdAt
-                          }
-
-                        </span>
-
-                      </div>
-
-                    )
-                  )
+                  selectedMedia.comments.map((comment) => (
+                    <div key={comment.id} className="sheet-comment-item">
+                      <p className="comment-text">{comment.text}</p>
+                      <span className="comment-time">{comment.createdAt}</span>
+                    </div>
+                  ))
                 )}
-
               </div>
 
-              <form
-                onSubmit={
-                  handleAddComment
-                }
-
-                className="sheet-form"
-              >
-
+              <form onSubmit={handleAddComment} className="sheet-form">
                 <input
                   type="text"
-
                   placeholder="Dodaj komentarz..."
-
-                  value={
-                    newCommentText
-                  }
-
-                  onChange={(e) =>
-                    setNewCommentText(
-                      e.target.value
-                    )
-                  }
+                  value={newCommentText}
+                  onChange={(e) => setNewCommentText(e.target.value)}
                 />
-
-                <button type="submit">
-                  Wyślij
-                </button>
-
+                <button type="submit">Wyślij</button>
               </form>
-
             </div>
-
           </div>
         )}
-
       </div>
 
-      <div className="scroll-to-top-wrapper">
+      <VersionBadge />
 
-        <button
-          onClick={scrollToTop}
-          className="scroll-to-top-btn"
-        >
+      <div className="scroll-to-top-wrapper">
+        <button onClick={scrollToTop} className="scroll-to-top-btn">
           ↑ Powrót na górę
         </button>
-
       </div>
 
       <nav>
-
         <ul>
-
           {navLinks.map((link) => {
-
-            const isActive =
-              pathname ===
-              link.href;
-
-            const Icon =
-              link.icon;
-
+            const isActive = pathname === link.href;
+            const Icon = link.icon;
             return (
-
-              <li
-                key={
-                  link.href
-                }
-              >
-
+              <li key={link.href}>
                 <Link
-                  href={
-                    link.href
-                  }
-
-                  className={
-                    isActive
-                      ? 'nav-item active'
-                      : 'nav-item'
-                  }
-
-                  title={
-                    link.label
-                  }
-
-                  aria-label={
-                    link.label
-                  }
+                  href={link.href}
+                  className={isActive ? 'nav-item active' : 'nav-item'}
+                  title={link.label}
+                  aria-label={link.label}
                 >
-
                   <Icon size={24} />
-
                 </Link>
-
               </li>
-
             );
           })}
-
         </ul>
-
       </nav>
-
     </>
   );
 }
