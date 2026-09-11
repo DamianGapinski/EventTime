@@ -438,17 +438,16 @@ export default function GaleriaPage() {
 
         setUploadStatusText(`Zapisywanie w bazie ${currentFileIndex}/${totalFiles}...`);
 
-        const { error: dbError } = await supabase.from('media').insert([
-
-          {
-
-            url: uploadData.publicUrl,
-
-            type: isVideo ? 'video' : 'image',
-
-          },
-
-        ]);
+        const authorName = typeof window !== 'undefined' ? localStorage.getItem('userName') || 'Gość' : 'Gość';
+       const { error: dbError } = await supabase.from('media').insert([
+  {
+    url: uploadData.publicUrl,
+    type: isVideo ? 'video' : 'image',
+    author_name: authorName,
+    likes: 0,
+    comments: [],
+  },
+]);
 
 
 
