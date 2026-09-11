@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Image as GalleryIcon, Gamepad2, Mail, Heart, Trash2, X, Play, Pause, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import styles from './galeria.module.css';
 
 interface Comment {
   id: string;
@@ -291,28 +292,28 @@ export default function GaleriaPage() {
   return (
     <>
       <div className="gallery-container" style={{ paddingBottom: '100px' }}>
-        <div className="gallery-header-container">
-          <div className="gallery-header-top">
+        <div className={styles.headerContainer}>
+          <div className={styles.headerTop}>
             <div>
               <h1>Galeria Wspomnień</h1>
               <p style={{ color: '#666', fontSize: '13px' }}>Cześć, <strong>{userName}</strong>!</p>
             </div>
           </div>
           
-          <div className="gallery-actions-row">
+          <div className={styles.actionsRow}>
             {mediaItems.length > 0 && (
               <button
                 onClick={() => {
                   setSelectedMedia(mediaItems[0]);
                   setIsSlideshowActive(true);
                 }}
-                className="gallery-slideshow-btn"
+                className={styles.slideshowBtn}
               >
                 <Play size={18} /> Pokaz slajdów
               </button>
             )}
 
-            <label className="gallery-upload-label">
+            <label className={styles.uploadLabel}>
               <Plus size={18} /> {uploading ? 'Wysyłanie...' : 'Dodaj'}
               <input
                 type="file"
@@ -320,7 +321,7 @@ export default function GaleriaPage() {
                 multiple
                 onChange={handleFileUpload}
                 disabled={uploading}
-                className="gallery-hidden-input"
+                className={styles.hiddenInput}
               />
             </label>
           </div>
@@ -468,7 +469,7 @@ export default function GaleriaPage() {
             <form onSubmit={handleAddComment} style={{ width: '100%', display: 'flex', gap: '8px', marginTop: '8px' }}>
               <input
                 type="text"
-                placeholder="Napisz komentarz..."
+                placeholder="Napisz komentarz jako..."
                 value={newCommentText}
                 onChange={(e) => setNewCommentText(e.target.value)}
                 style={{ flex: 1, padding: '8px 12px', borderRadius: '6px', border: 'none', fontSize: '13px' }}
