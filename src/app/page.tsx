@@ -1,33 +1,12 @@
-'use client';
-
-import { useState, useEffect } from 'react';
 import Image from "next/image";
 import styles from "./page.module.css";
 import Link from 'next/link';
 
 export default function Home() {
-  const [showNameModal, setShowNameModal] = useState(false);
-  const [userName, setUserName] = useState('');
-
-  useEffect(() => {
-    const savedName = localStorage.getItem('gallery_user_name');
-    if (!savedName) {
-      setShowNameModal(true);
-    }
-  }, []);
-
-  const handleSaveName = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userName.trim()) return;
-
-    localStorage.setItem('gallery_user_name', userName.trim());
-    setShowNameModal(false);
-  };
-
   return (
     <>
     <header>
-      <h1><strong>Damian & Viktorias</strong><br/><br/> Uwiecznij wszystkie chwile</h1>
+      <h1><strong>Damian & Viktoria</strong><br/><br/> Uwiecznij wszystkie chwile</h1>
       
       <Link href="/galeria">
       <button>Przejdź do aplikacji</button>
@@ -48,29 +27,9 @@ export default function Home() {
       <button>Przejdź do aplikacji</button>
       </Link>
     </main>
-
-    {/* Okienko z formularzem dla nowego użytkownika */}
-    {showNameModal && (
-      <div className={styles.modalOverlay}>
-        <div className={styles.modalContent}>
-          <h2>Witaj na naszym weselu! 🎉</h2>
-          <p>Wpisz swoje imię lub pseudonim, aby inni wiedzieli, kto dodaje zdjęcia i komentarze.</p>
-          <form onSubmit={handleSaveName}>
-            <input
-              type="text"
-              placeholder="Twoje imię..."
-              value={userName}
-              onChange={(e) => setUserName(e.target.value)}
-              required
-              className={styles.modalInput}
-            />
-            <button type="submit" className={styles.modalButton}>
-              Zapisz i wejdź
-            </button>
-          </form>
-        </div>
-      </div>
-    )}
+    
     </>
+    
+   
   );
 }
