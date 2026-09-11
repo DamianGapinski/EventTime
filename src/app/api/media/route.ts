@@ -19,7 +19,8 @@ export async function GET() {
       type: item.type,
       src: item.url,
       thumbSrc: item.thumb_url || item.url,
-      authorName: item.author_name,
+      authorName: item.author_name || 'Gość',
+      authorAvatar: item.author_avatar || undefined,
       likes: item.likes || 0,
       comments: item.comments || [],
       createdAt: item.created_at,
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
       thumb_url: body.thumbUrl || body.url,
       type: body.type || 'image',
       author_name: body.authorName || 'Gość',
+      author_avatar: body.authorAvatar || null,
       likes: 0,
       comments: [],
     };
@@ -61,6 +63,7 @@ export async function POST(request: Request) {
         src: data.url,
         thumbSrc: data.thumb_url || data.url,
         authorName: data.author_name,
+        authorAvatar: data.author_avatar,
         likes: data.likes,
         comments: data.comments,
       } 
@@ -71,7 +74,6 @@ export async function POST(request: Request) {
   }
 }
 
-// Obsługa lajków i komentarzy
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();

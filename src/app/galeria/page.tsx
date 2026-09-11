@@ -1,642 +1,607 @@
 'use client';
 
-import { useState, useEffect, useRef, ChangeEvent, FormEvent } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Home, Image as GalleryIcon, Gamepad2, Mail } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import React, { useState, useEffect, useRef } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 interface Comment {
   id: string;
+  authorName: string;
+  authorAvatar?: string;
   text: string;
   createdAt: string;
-  authorName?: string;
 }
 
 interface MediaItem {
-  id: string | number;
+  id: string;
   type: 'image' | 'video';
   src: string;
-  thumbSrc?: string;
-  alt: string;
-  authorName?: string;
+  thumbSrc: string;
+  authorName: string;
   authorAvatar?: string;
   likes: number;
-  isLiked?: boolean;
   comments: Comment[];
+  createdAt: string;
 }
 
 interface UserProfile {
-  id: string;
   name: string;
-  avatarUrl?: string;
+  avatarUrl: string;
 }
 
-const generateVideoThumbnail = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video');
-    const videoUrl = URL.createObjectURL(file);
+export default function GalleryPage() {
+  const [mediaList, setMediaList] = useState<MediaItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [uploading, setUploading] = useState<boolean>(false);
+  const [uploadStatusText, setUploadStatusText] = useState<string>('');
 
-    video.preload = 'metadata';
-    video.src = videoUrl;
-    video.muted = true;
-    video.playsInline = true;
-    video.autoplay = false;
+  // Stan profilu użytkownika i modalu
+  const [profile, setProfile] = useState<UserProfile>({ name: '', avatarUrl: '' });
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  const [tempName, setTempName] = useState<string>('');
+  const [tempAvatar, setTempAvatar] = useState<string>('');
 
-    video.onloadeddata = () => {
-      video.currentTime = 0.5;
-    };
-
-    video.onseeked = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 400;
-      canvas.height = video.videoHeight || 600;
-
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      }
-
-      const thumbUrl = canvas.toDataURL('image/jpeg', 0.7);
-      URL.revokeObjectURL(videoUrl);
-      resolve(thumbUrl);
-    };
-
-    video.onerror = (err) => {
-      URL.revokeObjectURL(videoUrl);
-      reject(err);
-    };
-  });
-};
-
-const VersionBadge = () => {
-  const commitHash = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA 
-    ? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA.substring(0, 7) 
-    : 'dev-local';
-
-  return (
-    <div style={{
-      position: 'fixed',
-      bottom: '80px',
-      right: '12px',
-      background: 'rgba(0, 0, 0, 0.75)',
-      color: '#fff',
-      padding: '4px 8px',
-      fontSize: '11px',
-      borderRadius: '4px',
-      zIndex: 9999,
-      pointerEvents: 'none',
-      fontFamily: 'monospace',
-    }}>
-      v: {commitHash}
-    </div>
-  );
-};
-
-export default function GaleriaPage() {
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
-  const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
-  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
-  const [newCommentText, setNewCommentText] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-  const [isSlideshowActive, setIsSlideshowActive] = useState(false);
-  const [errorImages, setErrorImages] = useState<Record<string, boolean>>({});
-  const [uploadStatusText, setUploadStatusText] = useState('');
-  const [uploadProgress, setUploadProgress] = useState(0);
-
-  // Profile stan
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [tempName, setTempName] = useState('');
-  const [tempAvatar, setTempAvatar] = useState('');
-
+  // Stan lightboxa i pokazu slajdów
+  const [activeItemIndex, setActiveItemIndex] = useState<number | null>(null);
+  const [isSlideshowActive, setIsSlideshowActive] = useState<boolean>(false);
+  const slideshowTimerRef = useRef<NodeJS.Timeout | null>(null);
   const activeVideoRef = useRef<HTMLVideoElement | null>(null);
-  const pathname = usePathname();
 
-  const navLinks = [
-    { href: '/', icon: Home, label: 'Home' },
-    { href: '/galeria', icon: GalleryIcon, label: 'Galeria' },
-    { href: '/games', icon: Gamepad2, label: 'Gry' },
-    { href: '/contact', icon: Mail, label: 'Kontakt' },
-  ];
+  // Stan nowego komentarza
+  const [commentText, setCommentText] = useState<string>('');
 
+  // Inicjalizacja profilu z localStorage oraz pobranie mediów
   useEffect(() => {
-    let token = localStorage.getItem('app_browser_token');
-    if (!token) {
-      token = crypto.randomUUID();
-      localStorage.setItem('app_browser_token', token);
-    }
-    const savedName = localStorage.getItem('app_user_name');
-    const savedAvatar = localStorage.getItem('app_user_avatar');
+    const savedName = localStorage.getItem('gallery_user_name');
+    const savedAvatar = localStorage.getItem('gallery_user_avatar');
 
-    if (savedName) {
-      setProfile({ id: token, name: savedName, avatarUrl: savedAvatar || undefined });
-    } else {
+    if (!savedName) {
       setIsProfileModalOpen(true);
+    } else {
+      setProfile({
+        name: savedName,
+        avatarUrl: savedAvatar || '',
+      });
     }
+
+    fetchMedia();
   }, []);
 
-  const handleSaveProfile = (e: FormEvent) => {
+  const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     if (!tempName.trim()) return;
 
-    const token = localStorage.getItem('app_browser_token')!;
-    localStorage.setItem('app_user_name', tempName.trim());
-    if (tempAvatar.trim()) {
-      localStorage.setItem('app_user_avatar', tempAvatar.trim());
-    }
+    const newProfile = {
+      name: tempName.trim(),
+      avatarUrl: tempAvatar.trim(),
+    };
 
-    setProfile({ id: token, name: tempName.trim(), avatarUrl: tempAvatar.trim() || undefined });
+    localStorage.setItem('gallery_user_name', newProfile.name);
+    localStorage.setItem('gallery_user_avatar', newProfile.avatarUrl);
+    setProfile(newProfile);
     setIsProfileModalOpen(false);
   };
 
   const fetchMedia = async () => {
     try {
-      const res = await fetch('/api/media', { method: 'GET', cache: 'no-store' });
+      const res = await fetch('/api/media');
       const data = await res.json();
-
-      if (data.success && Array.isArray(data.data)) {
-        const likedItems: string[] = JSON.parse(localStorage.getItem('liked_media') || '[]');
-        const fetchedItems: MediaItem[] = data.data.map((item: any, idx: number) => ({
-          id: item.id || `fetched-${idx}-${Date.now()}`,
-          type: item.type === 'video' ? 'video' : 'image',
-          src: item.url || item.src,
-          thumbSrc: item.thumbnail_url || item.thumbSrc,
-          alt: 'Zdjęcie z wydarzenia',
-          authorName: item.authorName || 'Gość',
-          authorAvatar: item.authorAvatar,
-          likes: item.likes || 0,
-          isLiked: likedItems.includes(String(item.id)),
-          comments: item.comments || [],
-        }));
-        setMediaItems(fetchedItems);
+      if (data.success) {
+        setMediaList(data.data);
       }
     } catch (err) {
-      console.error('Błąd podczas pobierania galerii:', err);
+      console.error('Błąd pobierania mediów:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchMedia();
-    const interval = setInterval(fetchMedia, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  // Generowanie miniaturki dla wideo (zgodne z iOS/WebKit)
+  const generateVideoThumbnail = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+      video.src = URL.createObjectURL(file);
 
-  const nextSlide = () => {
-    if (!selectedMedia) return;
-    setMediaItems((currentItems) => {
-      const currentIndex = currentItems.findIndex((m) => m.id === selectedMedia.id);
-      const nextIndex = (currentIndex + 1) % currentItems.length;
-      setSelectedMedia(currentItems[nextIndex]);
-      return currentItems;
+      video.onloadedmetadata = () => {
+        video.currentTime = 0.5;
+      };
+
+      video.onseeked = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 360;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
+        } else {
+          resolve('');
+        }
+        URL.revokeObjectURL(video.src);
+      };
+
+      video.onerror = () => {
+        resolve('');
+        URL.revokeObjectURL(video.src);
+      };
     });
   };
 
-  const prevSlide = () => {
-    if (!selectedMedia) return;
-    setMediaItems((currentItems) => {
-      const currentIndex = currentItems.findIndex((m) => m.id === selectedMedia.id);
-      const prevIndex = (currentIndex - 1 + currentItems.length) % currentItems.length;
-      setSelectedMedia(currentItems[prevIndex]);
-      return currentItems;
-    });
+  // Upload plików
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (!profile.name) {
+      setIsProfileModalOpen(true);
+      return;
+    }
+
+    setUploading(true);
+    const totalFiles = files.length;
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const isVideo = file.type.startsWith('video');
+        const currentFileIndex = i + 1;
+
+        setUploadStatusText(`Przetwarzanie pliku ${currentFileIndex}/${totalFiles}...`);
+
+        let thumbBase64 = '';
+        if (isVideo) {
+          thumbBase64 = await generateVideoThumbnail(file);
+        }
+
+        // 1. Upload do Storage Supabase
+        setUploadStatusText(`Wysyłanie ${currentFileIndex}/${totalFiles}...`);
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+        const filePath = `uploads/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('media-bucket') // Upewnij się, że masz taki bucket lub zmień nazwę
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from('media-bucket')
+          .getPublicUrl(filePath);
+
+        const publicUrl = publicUrlData.publicUrl;
+
+        // 2. Zapis do bazy danych przez API
+        setUploadStatusText(`Zapisywanie w bazie ${currentFileIndex}/${totalFiles}...`);
+        const dbRes = await fetch('/api/media', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: publicUrl,
+            thumbUrl: thumbBase64 || publicUrl,
+            type: isVideo ? 'video' : 'image',
+            authorName: profile.name,
+            authorAvatar: profile.avatarUrl,
+          }),
+        });
+
+        const dbData = await dbRes.json();
+        if (!dbData.success) {
+          console.error('Błąd zapisu do bazy:', dbData.error);
+        }
+      }
+
+      await fetchMedia();
+    } catch (err: any) {
+      console.error('Błąd podczas wysyłania:', err);
+      alert('Wystąpił błąd podczas przesyłania plików: ' + (err.message || err));
+    } finally {
+      setUploading(false);
+      setUploadStatusText('');
+      e.target.value = '';
+    }
   };
 
-  // Inteligentny pokaz slajdów: obsługa wideo + fallback timer dla zdjęć
+  // Obsługa polubień z zabezpieczeniem przed wielokrotnym kliknięciem (LocalStorage)
+  const handleLike = async (item: MediaItem, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const likedKey = `liked_${item.id}`;
+    const alreadyLiked = localStorage.getItem(likedKey);
+
+    if (alreadyLiked) return; // Zapobiegaj ponownemu polubieniu
+
+    const newLikes = item.likes + 1;
+
+    // Aktualizacja optymistyczna UI
+    setMediaList((prev) =>
+      prev.map((m) => (m.id === item.id ? { ...m, likes: newLikes } : m))
+    );
+
+    localStorage.setItem(likedKey, 'true');
+
+    try {
+      await fetch('/api/media', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, likes: newLikes }),
+      });
+    } catch (err) {
+      console.error('Błąd polubienia:', err);
+    }
+  };
+
+  // Dodawanie komentarza
+  const handleAddComment = async (itemId: string) => {
+    if (!commentText.trim()) return;
+    if (!profile.name) {
+      setIsProfileModalOpen(true);
+      return;
+    }
+
+    const targetItem = mediaList.find((m) => m.id === itemId);
+    if (!targetItem) return;
+
+    const newComment: Comment = {
+      id: Date.now().toString(),
+      authorName: profile.name,
+      authorAvatar: profile.avatarUrl,
+      text: commentText.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedComments = [...targetItem.comments, newComment];
+
+    setMediaList((prev) =>
+      prev.map((m) => (m.id === itemId ? { ...m, comments: updatedComments } : m))
+    );
+    setCommentText('');
+
+    try {
+      await fetch('/api/media', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: itemId, comments: updatedComments }),
+      });
+    } catch (err) {
+      console.error('Błąd dodawania komentarza:', err);
+    }
+  };
+
+  // Inteligentny Pokaz Slajdów
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (selectedMedia && isSlideshowActive) {
-      if (selectedMedia.type === 'image') {
-        timer = setTimeout(nextSlide, 4000);
-      } else if (activeVideoRef.current) {
+    if (!isSlideshowActive || activeItemIndex === null) {
+      if (slideshowTimerRef.current) clearTimeout(slideshowTimerRef.current);
+      return;
+    }
+
+    const currentItem = mediaList[activeItemIndex];
+    if (!currentItem) return;
+
+    if (currentItem.type === 'image') {
+      slideshowTimerRef.current = setTimeout(() => {
+        setActiveItemIndex((prev) =>
+          prev !== null ? (prev + 1) % mediaList.length : 0
+        );
+      }, 4000);
+    } else if (currentItem.type === 'video') {
+      // Dla wideo czekamy na zdarzenie onEnded lub referencję, w razie awarii timerek zabezpieczający
+      if (activeVideoRef.current) {
         activeVideoRef.current.currentTime = 0;
         activeVideoRef.current.play().catch(() => {});
       }
     }
-    return () => clearTimeout(timer);
-  }, [selectedMedia, isSlideshowActive]);
 
-  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setIsUploading(true);
-    setUploadProgress(0);
-    const totalFiles = files.length;
-
-    try {
-      for (let i = 0; i < totalFiles; i++) {
-        const file = files[i];
-        const currentFileIndex = i + 1;
-        const isVideo = file.type.startsWith('video/');
-
-        let thumbBase64 = '';
-        if (isVideo) {
-          setUploadStatusText(`Generowanie miniaturki ${currentFileIndex}/${totalFiles}...`);
-          try {
-            thumbBase64 = await generateVideoThumbnail(file);
-          } catch (thumbErr) {
-            console.warn('Nie udało się wygenerować miniaturki wideo:', thumbErr);
-          }
-        }
-
-        setUploadStatusText(`Przygotowanie pliku ${currentFileIndex}/${totalFiles}...`);
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: file.name, contentType: file.type }),
-        });
-
-        const uploadData = await res.json();
-        if (!uploadData.success || !uploadData.uploadUrl) {
-          throw new Error('Nie udało się pobrać URL do przesyłania.');
-        }
-
-        setUploadStatusText(`Wysyłanie pliku ${currentFileIndex}/${totalFiles} do S3...`);
-        const uploadRes = await fetch(uploadData.uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': file.type },
-          body: file,
-        });
-
-        if (!uploadRes.ok) {
-          throw new Error('Błąd podczas wysyłania pliku na S3.');
-        }
-
-        setUploadStatusText(`Zapisywanie w bazie ${currentFileIndex}/${totalFiles}...`);
-        const { error: dbError } = await supabase.from('media').insert([
-          {
-            url: uploadData.publicUrl,
-            type: isVideo ? 'video' : 'image',
-            authorName: profile?.name || 'Gość',
-            authorAvatar: profile?.avatarUrl || null,
-          },
-        ]);
-
-        if (dbError) {
-          console.error('Błąd zapisu do Supabase:', dbError);
-        }
-
-        const newItem: MediaItem = {
-          id: `local-${Date.now()}-${i}`,
-          type: isVideo ? 'video' : 'image',
-          src: uploadData.publicUrl,
-          thumbSrc: isVideo ? thumbBase64 : uploadData.publicUrl,
-          alt: file.name,
-          authorName: profile?.name || 'Gość',
-          authorAvatar: profile?.avatarUrl,
-          likes: 0,
-          comments: [],
-        };
-        setMediaItems((prev) => [newItem, ...prev]);
-        setUploadProgress(Math.round((currentFileIndex / totalFiles) * 100));
-      }
-
-      setUploadStatusText('Wszystkie pliki zostały pomyślnie przesłane!');
-      fetchMedia();
-    } catch (error) {
-      console.error('Błąd podczas przesyłania plików:', error);
-      setUploadStatusText('Wystąpił błąd podczas przesyłania.');
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleToggleLike = async (id: string | number) => {
-    const targetItem = mediaItems.find((item) => item.id === id);
-    if (!targetItem) return;
-
-    const likedItems: string[] = JSON.parse(localStorage.getItem('liked_media') || '[]');
-    const isAlreadyLiked = likedItems.includes(String(id));
-
-    if (isAlreadyLiked) return; // Zablokuj ponowne polubienie
-
-    const newLikes = targetItem.likes + 1;
-
-    setMediaItems((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          const updated = { ...item, likes: newLikes, isLiked: true };
-          if (selectedMedia?.id === id) setSelectedMedia(updated);
-          return updated;
-        }
-        return item;
-      })
-    );
-
-    const updatedLikedItems = [...likedItems, String(id)];
-    localStorage.setItem('liked_media', JSON.stringify(updatedLikedItems));
-
-    try {
-      await fetch('/api/media', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, likes: newLikes }),
-      });
-    } catch (err) {
-      console.error('Błąd zapisu lajka:', err);
-    }
-  };
-
-  const handleAddComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCommentText.trim() || !selectedMedia) return;
-
-    const newComment: Comment = {
-      id: Date.now().toString(),
-      text: newCommentText.trim(),
-      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      authorName: profile?.name || 'Gość',
+    return () => {
+      if (slideshowTimerRef.current) clearTimeout(slideshowTimerRef.current);
     };
+  }, [isSlideshowActive, activeItemIndex, mediaList]);
 
-    const updatedComments = [...selectedMedia.comments, newComment];
-
-    setMediaItems((prev) =>
-      prev.map((item) => {
-        if (item.id === selectedMedia.id) {
-          const updated = { ...item, comments: updatedComments };
-          setSelectedMedia(updated);
-          return updated;
-        }
-        return item;
-      })
-    );
-    setNewCommentText('');
-
-    try {
-      await fetch('/api/media', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selectedMedia.id, comments: updatedComments }),
-      });
-    } catch (err) {
-      console.error('Błąd zapisu komentarza:', err);
+  const handleVideoEnded = () => {
+    if (isSlideshowActive) {
+      setActiveItemIndex((prev) =>
+        prev !== null ? (prev + 1) % mediaList.length : 0
+      );
     }
-  };
-
-  const closeModal = () => {
-    setSelectedMedia(null);
-    setIsCommentsOpen(false);
-    setIsSlideshowActive(false);
   };
 
   return (
-    <>
-      <div className="gallery-container">
-        <div className="gallery-header">
-          <h1>Galeria Wspomnień</h1>
-          
-          <div className="flex items-center gap-3 mb-4">
-            {profile && (
-              <div 
-                onClick={() => setIsProfileModalOpen(true)}
-                className="flex items-center gap-2 cursor-pointer bg-neutral-800 px-3 py-1.5 rounded-full border border-neutral-700"
-              >
-                {profile.avatarUrl ? (
-                  <img src={profile.avatarUrl} alt="Avatar" className="w-6 h-6 rounded-full object-cover" />
-                ) : (
-                  <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-xs text-white">
-                    {profile.name[0]?.toUpperCase()}
-                  </div>
-                )}
-                <span className="text-sm font-medium text-white">{profile.name}</span>
-                <span className="text-xs text-neutral-400">Edytuj</span>
+    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
+      {/* NAGŁÓWEK */}
+      <header className="flex flex-col md:flex-row items-center justify-between gap-4 mb-8 pb-6 border-b border-slate-800">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+            Galeria Wspomnień
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">Dziel się zdjęciami i filmami w czasie rzeczywistym</p>
+        </div>
+
+        <div className="flex items-center gap-4">
+          {/* Przycisk profilu użytkownika */}
+          <button
+            onClick={() => {
+              setTempName(profile.name);
+              setTempAvatar(profile.avatarUrl);
+              setIsProfileModalOpen(true);
+            }}
+            className="flex items-center gap-3 bg-slate-900 border border-slate-800 hover:border-slate-700 px-4 py-2 rounded-xl transition"
+          >
+            {profile.avatarUrl ? (
+              <img src={profile.avatarUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-sm">
+                {profile.name ? profile.name.charAt(0).toUpperCase() : '?'}
               </div>
             )}
-          </div>
+            <div className="text-left">
+              <div className="text-xs text-slate-400">Zalogowany jako</div>
+              <div className="text-sm font-medium">{profile.name || 'Ustaw tożsamość'}</div>
+            </div>
+          </button>
 
-          <section className="upload-section flex flex-col items-center gap-2">
-            <label className="upload-button cursor-pointer">
-              {isUploading ? uploadStatusText : 'Prześlij wspomnienie'}
-              <input
-                type="file"
-                accept="image/*,video/*"
-                multiple
-                disabled={isUploading}
-                onChange={handleFileUpload}
-                className="file-input hidden"
-              />
-            </label>
-          </section>
+          {/* Przycisk dodawania */}
+          <label className="cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center gap-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Dodaj pliki
+            <input type="file" multiple accept="image/*,video/*" onChange={handleFileUpload} className="hidden" />
+          </label>
         </div>
+      </header>
 
-        <div className="masonry-grid">
-          {mediaItems
-            .filter((item) => !errorImages[item.id])
-            .map((item) => (
+      {/* STATUS UPLOADU */}
+      {uploading && (
+        <div className="mb-6 bg-indigo-950/50 border border-indigo-800/50 p-4 rounded-xl flex items-center gap-3 animate-pulse">
+          <div className="w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-indigo-200 font-medium">{uploadStatusText}</span>
+        </div>
+      )}
+
+      {/* SIATKA GALERII */}
+      {loading ? (
+        <div className="flex justify-center items-center py-24">
+          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      ) : mediaList.length === 0 ? (
+        <div className="text-center py-24 border-2 border-dashed border-slate-800 rounded-2xl">
+          <p className="text-slate-400 mb-2">Brak zdjęć i filmów w galerii.</p>
+          <p className="text-sm text-slate-600">Użyj przycisku „Dodaj pliki”, aby wrzucić pierwsze materiały!</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {mediaList.map((item, index) => {
+            const likedKey = `liked_${item.id}`;
+            const isLiked = typeof window !== 'undefined' && Boolean(localStorage.getItem(likedKey));
+
+            return (
               <div
                 key={item.id}
-                className="masonry-item"
                 onClick={() => {
-                  setSelectedMedia(item);
+                  setActiveItemIndex(index);
                   setIsSlideshowActive(false);
                 }}
+                className="group relative bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden cursor-pointer hover:border-slate-700 transition flex flex-col"
               >
-                {item.type === 'image' ? (
-                  <Image
-                    src={item.thumbSrc || item.src}
-                    alt={item.alt}
-                    width={400}
-                    height={600}
-                    unoptimized
-                    className="gallery-thumb"
-                    onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
-                  />
-                ) : (
-                  <div className="video-thumb-container">
-                    <video
-                      src={item.src}
-                      preload="metadata"
-                      className="gallery-thumb object-cover"
-                      onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
-                    />
-                    <div className="play-overlay">
-                      <span className="play-icon">▶</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-        </div>
-
-        {selectedMedia && (
-          <div
-            className="reel-modal-overlay"
-            onTouchStart={(e) => {
-              (e.currentTarget as HTMLElement & { touchStartX?: number }).touchStartX = e.touches[0].clientX;
-            }}
-            onTouchEnd={(e) => {
-              const target = e.currentTarget as HTMLElement & { touchStartX?: number };
-              const startX = target.touchStartX;
-              if (startX === undefined) return;
-
-              const diffX = startX - e.changedTouches[0].clientX;
-              if (diffX > 50) nextSlide();
-              else if (diffX < -50) prevSlide();
-            }}
-          >
-            <button className="reel-close-btn" onClick={closeModal}>✕</button>
-
-            <div className="reel-media-wrapper reel-media-animated" key={selectedMedia.id} onClick={() => setIsCommentsOpen(false)}>
-              {selectedMedia.type === 'image' ? (
-                <Image
-                  src={selectedMedia.src}
-                  alt={selectedMedia.alt}
-                  fill
-                  unoptimized
-                  className="reel-media"
-                />
-              ) : (
-                <video
-                  ref={activeVideoRef}
-                  src={selectedMedia.src}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  className="reel-media"
-                  onEnded={() => {
-                    if (isSlideshowActive) nextSlide();
-                  }}
-                />
-              )}
-            </div>
-
-            <div className="reel-author-info">
-              {selectedMedia.authorAvatar ? (
-                <img src={selectedMedia.authorAvatar} alt="Avatar" className="author-avatar object-cover" />
-              ) : (
-                <div className="author-avatar">{(selectedMedia.authorName || 'D')[0].toUpperCase()}</div>
-              )}
-              <span className="author-name">{selectedMedia.authorName || 'Damian'}</span>
-            </div>
-
-            <div className="reel-actions">
-              <button
-                className="action-btn slideshow-toggle-square-btn"
-                onClick={() => setIsSlideshowActive((prev) => !prev)}
-                title={isSlideshowActive ? 'Zatrzymaj pokaz' : 'Rozpocznij pokaz'}
-              >
-                <span className="icon">{isSlideshowActive ? '⏸' : '▶'}</span>
-              </button>
-
-              <button
-                className={`action-btn ${selectedMedia.isLiked ? 'liked' : ''}`}
-                onClick={() => handleToggleLike(selectedMedia.id)}
-              >
-                <span className="icon">⭐</span>
-                <span className="count">{selectedMedia.likes}</span>
-              </button>
-
-              <button className="action-btn" onClick={() => setIsCommentsOpen((prev) => !prev)}>
-                <span className="icon">💬</span>
-                <span className="count">{selectedMedia.comments.length}</span>
-              </button>
-            </div>
-
-            <div className={`bottom-comments-sheet ${isCommentsOpen ? 'open' : ''}`}>
-              <div className="sheet-header">
-                <span>Komentarze ({selectedMedia.comments.length})</span>
-                <button className="sheet-close" onClick={() => setIsCommentsOpen(false)}>✕</button>
-              </div>
-
-              <div className="sheet-comments-list">
-                {selectedMedia.comments.length === 0 ? (
-                  <p className="no-comments">Brak komentarzy. Napisz coś!</p>
-                ) : (
-                  selectedMedia.comments.map((comment) => (
-                    <div key={comment.id} className="sheet-comment-item">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs font-bold text-indigo-400">{comment.authorName || 'Gość'}</span>
-                        <span className="comment-time">{comment.createdAt}</span>
+                <div className="relative aspect-square bg-slate-950 overflow-hidden">
+                  {item.type === 'video' ? (
+                    <>
+                      <img src={item.thumbSrc} alt="Miniaturka wideo" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                        <div className="w-12 h-12 rounded-full bg-indigo-600/90 flex items-center justify-center text-white pl-0.5 shadow-lg">
+                          ▶
+                        </div>
                       </div>
-                      <p className="comment-text">{comment.text}</p>
-                    </div>
-                  ))
-                )}
+                    </>
+                  ) : (
+                    <img src={item.src} alt="Zdjęcie" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                  )}
+                </div>
+
+                {/* Stopka karty */}
+                <div className="p-3 flex items-center justify-between bg-slate-900/90 border-t border-slate-800">
+                  <div className="flex items-center gap-2 truncate">
+                    {item.authorAvatar ? (
+                      <img src={item.authorAvatar} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                        {item.authorName?.charAt(0) || 'G'}
+                      </div>
+                    )}
+                    <span className="text-xs text-slate-300 truncate">{item.authorName || 'Gość'}</span>
+                  </div>
+
+                  <button
+                    onClick={(e) => handleLike(item, e)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition ${
+                      isLiked ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    <span>❤️</span>
+                    <span>{item.likes}</span>
+                  </button>
+                </div>
               </div>
-
-              <form onSubmit={handleAddComment} className="sheet-form">
-                <input
-                  type="text"
-                  placeholder="Dodaj komentarz..."
-                  value={newCommentText}
-                  onChange={(e) => setNewCommentText(e.target.value)}
-                />
-                <button type="submit">Wyślij</button>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Modal Tożsamości */}
-        {isProfileModalOpen && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[10000] p-4">
-            <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-xl max-w-md w-full shadow-xl">
-              <h2 className="text-xl font-bold text-white mb-2">Przedstaw się</h2>
-              <p className="text-sm text-neutral-400 mb-4">Wpisz swoje imię i opcjonalnie podaj link do zdjęcia, aby inni wiedzieli, kto dodaje wspomnienia.</p>
-              
-              <form onSubmit={handleSaveProfile} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-300 mb-1">Imię i nazwisko / Pseudonim</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="np. Anna Nowak"
-                    value={tempName}
-                    onChange={(e) => setTempName(e.target.value)}
-                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-300 mb-1">Link do zdjęcia profilowego (opcjonalnie)</label>
-                  <input
-                    type="url"
-                    placeholder="https://example.com/avatar.jpg"
-                    value={tempAvatar}
-                    onChange={(e) => setTempAvatar(e.target.value)}
-                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2 rounded-lg transition-colors text-sm"
-                >
-                  Zapisz i kontynuuj
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <VersionBadge />
-
-      <div className="scroll-to-top-wrapper">
-        <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="scroll-to-top-btn">
-          ↑ Powrót na górę
-        </button>
-      </div>
-
-      <nav>
-        <ul>
-          {navLinks.map((link) => {
-            const Icon = link.icon;
-            return (
-              <li key={link.href}>
-                <Link
-                  href={link.href}
-                  className={pathname === link.href ? 'nav-item active' : 'nav-item'}
-                  title={link.label}
-                  aria-label={link.label}
-                >
-                  <Icon size={24} />
-                </Link>
-              </li>
             );
           })}
-        </ul>
-      </nav>
-    </>
+        </div>
+      )}
+
+      {/* MODAL / LIGHTBOX */}
+      {activeItemIndex !== null && mediaList[activeItemIndex] && (
+        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col md:flex-row">
+          {/* Główny widok media */}
+          <div className="flex-1 relative flex items-center justify-center p-4">
+            <button
+              onClick={() => {
+                setActiveItemIndex(null);
+                setIsSlideshowActive(false);
+              }}
+              className="absolute top-4 left-4 z-20 bg-slate-900/80 hover:bg-slate-800 text-white p-2.5 rounded-xl border border-slate-700 transition"
+            >
+              ✕ Zamknij
+            </button>
+
+            <button
+              onClick={() => setIsSlideshowActive(!isSlideshowActive)}
+              className={`absolute top-4 right-4 z-20 px-4 py-2 rounded-xl text-sm font-medium border transition ${
+                isSlideshowActive
+                  ? 'bg-rose-600/90 border-rose-500 text-white'
+                  : 'bg-slate-900/80 border-slate-700 text-slate-200 hover:bg-slate-800'
+              }`}
+            >
+              {isSlideshowActive ? '⏹ Zatrzymaj pokaz' : '▶ Pokaz slajdów'}
+            </button>
+
+            <div className="max-w-4xl max-h-[85vh] w-full h-full flex items-center justify-center">
+              {mediaList[activeItemIndex].type === 'video' ? (
+                <video
+                  ref={activeVideoRef}
+                  src={mediaList[activeItemIndex].src}
+                  controls
+                  autoPlay
+                  playsInline
+                  onEnded={handleVideoEnded}
+                  className="max-h-full max-w-full object-contain rounded-xl"
+                />
+              ) : (
+                <img
+                  src={mediaList[activeItemIndex].src}
+                  alt="Podgląd"
+                  className="max-h-full max-w-full object-contain rounded-xl"
+                />
+              )}
+            </div>
+
+            {/* Strzałki nawigacji */}
+            <button
+              onClick={() => setActiveItemIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : mediaList.length - 1))}
+              className="absolute left-4 top-1/2 -translate-y-1/2 bg-slate-900/80 hover:bg-slate-800 text-white p-3 rounded-full border border-slate-700 transition"
+            >
+              ‹
+            </button>
+            <button
+              onClick={() => setActiveItemIndex((prev) => (prev !== null ? (prev + 1) % mediaList.length : 0))}
+              className="absolute right-4 md:right-[380px] top-1/2 -translate-y-1/2 bg-slate-900/80 hover:bg-slate-800 text-white p-3 rounded-full border border-slate-700 transition"
+            >
+              ›
+            </button>
+          </div>
+
+          {/* Panel boczny: Komentarze i info */}
+          <div className="w-full md:w-[380px] bg-slate-900 border-t md:border-t-0 md:border-l border-slate-800 flex flex-col h-[40vh] md:h-full">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {mediaList[activeItemIndex].authorAvatar ? (
+                  <img src={mediaList[activeItemIndex].authorAvatar} alt="" className="w-9 h-9 rounded-full object-cover" />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center font-bold">
+                    {mediaList[activeItemIndex].authorName?.charAt(0) || 'G'}
+                  </div>
+                )}
+                <div>
+                  <div className="font-medium text-sm">{mediaList[activeItemIndex].authorName}</div>
+                  <div className="text-xs text-slate-500">
+                    {new Date(mediaList[activeItemIndex].createdAt).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={(e) => handleLike(mediaList[activeItemIndex], e)}
+                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-xl text-xs font-medium transition"
+              >
+                <span>❤️</span>
+                <span>{mediaList[activeItemIndex].likes}</span>
+              </button>
+            </div>
+
+            {/* Lista komentarzy */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {mediaList[activeItemIndex].comments.length === 0 ? (
+                <p className="text-center text-slate-500 text-xs py-8">Brak komentarzy. Bądź pierwszy!</p>
+              ) : (
+                mediaList[activeItemIndex].comments.map((comment) => (
+                  <div key={comment.id} className="bg-slate-950/50 border border-slate-800/60 p-3 rounded-xl">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-indigo-400">{comment.authorName}</span>
+                      <span className="text-[10px] text-slate-600">
+                        {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-300">{comment.text}</p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Formularz dodawania komentarza */}
+            <div className="p-3 border-t border-slate-800 bg-slate-950/30 flex gap-2">
+              <input
+                type="text"
+                placeholder="Napisz komentarz..."
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddComment(mediaList[activeItemIndex].id)}
+                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 transition"
+              />
+              <button
+                onClick={() => handleAddComment(mediaList[activeItemIndex].id)}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition"
+              >
+                Wyślij
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL TOŻSAMOŚCI UŻYTKOWNIKA */}
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <h2 className="text-xl font-bold mb-2">Przedstaw się</h2>
+            <p className="text-slate-400 text-sm mb-6">Wprowadź swoje imię oraz opcjonalny awatar, aby inni wiedzieli, kto dodaje zdjęcia i komentarze.</p>
+
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Twoje imię lub pseudonim *</label>
+                <input
+                  type="text"
+                  required
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  placeholder="np. Jan Kowalski"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Link do zdjęcia profilowego (opcjonalnie)</label>
+                <input
+                  type="url"
+                  value={tempAvatar}
+                  onChange={(e) => setTempAvatar(e.target.value)}
+                  placeholder="https://example.com/avatar.jpg"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20 mt-2"
+              >
+                Zapisz i kontynuuj
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </main>
   );
 }
