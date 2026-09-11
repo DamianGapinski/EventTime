@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Inicjalizacja klienta Supabase dla serwera
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -17,13 +16,13 @@ export async function GET() {
       throw error;
     }
 
-    // Mapujemy kolumny z bazy na format, którego oczekuje frontend
     const formattedData = (data || []).map((item) => ({
       id: item.id,
       url: item.url,
-      resourceType: item.resource_type,
+      thumbSrc: item.thumb_url || item.url,
+      resourceType: item.type,
       authorName: item.author_name,
-      likes: item.likes,
+      likes: item.likes || 0,
       comments: item.comments || [],
       createdAt: item.created_at,
     }));
@@ -41,10 +40,11 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const newItem = {
-      id: Date.now().toString(),
+    
+    const newRecord = {
       url: body.url,
-      resource_type: body.type || 'image',
+      thumb_url: body.thumbUrl || body.url,
+      type: body.type || 'image',
       author_name: body.authorName || 'Gość',
       likes: 0,
       comments: [],
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
 
     const { data, error } = await supabase
       .from('media')
-      .insert([newItem])
+      .insert([newRecord])
       .select()
       .single();
 
@@ -65,7 +65,8 @@ export async function POST(request: Request) {
       data: {
         id: data.id,
         url: data.url,
-        resourceType: data.resource_type,
+        thumbSrc: data.thumb_url || data.url,
+        resourceType: data.type,
         authorName: data.author_name,
         likes: data.likes,
         comments: data.comments,
