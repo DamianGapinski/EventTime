@@ -224,7 +224,7 @@ export default function GaleriaPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             url: uploadData.publicUrl,
-            thumbUrl: thumbUrl || uploadData.publicUrl,
+            thumbSrc: uploadData.publicUrl, // <--- Używamy stałego URL z S3 zamiast tymczasowego bloba
             type: isVideo ? 'video' : 'image',
             authorName: 'Gość',
           }),
@@ -235,8 +235,8 @@ export default function GaleriaPage() {
           const newItem: MediaItem = {
             id: dbData.data.id,
             type: dbData.data.type,
-            src: dbData.data.src,
-            thumbSrc: dbData.data.thumbSrc,
+            src: uploadData.publicUrl,       // <--- Zapewniamy stały link z S3
+            thumbSrc: uploadData.publicUrl,  // <--- Zapewniamy stały link z S3
             alt: fileName,
             authorName: dbData.data.authorName,
             likes: dbData.data.likes,
