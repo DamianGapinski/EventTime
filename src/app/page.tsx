@@ -9,7 +9,6 @@ export default function Home() {
   const [showNameModal, setShowNameModal] = useState(false);
   const [userName, setUserName] = useState('');
 
-  // Sprawdzamy przy załadowaniu strony, czy użytkownik ma już zapisane imię
   useEffect(() => {
     const savedName = localStorage.getItem('gallery_user_name');
     if (!savedName) {
@@ -17,7 +16,6 @@ export default function Home() {
     }
   }, []);
 
-  // Obsługa zapisu imienia z formularza
   const handleSaveName = (e: React.FormEvent) => {
     e.preventDefault();
     if (!userName.trim()) return;
@@ -51,34 +49,12 @@ export default function Home() {
       </Link>
     </main>
 
-    {/* Okienko (div) z formularzem dla nowego użytkownika */}
+    {/* Okienko z formularzem dla nowego użytkownika */}
     {showNameModal && (
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1000
-      }}>
-        <div style={{
-          backgroundColor: '#111',
-          padding: '30px',
-          borderRadius: '12px',
-          maxWidth: '400px',
-          width: '90%',
-          color: '#fff',
-          textAlign: 'center',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
-        }}>
+      <div className={styles.modalOverlay}>
+        <div className={styles.modalContent}>
           <h2>Witaj na naszym weselu! 🎉</h2>
-          <p style={{ margin: '15px 0', fontSize: '14px', color: '#ccc' }}>
-            Wpisz swoje imię lub pseudonim, aby inni wiedzieli, kto dodaje zdjęcia i komentarze.
-          </p>
+          <p>Wpisz swoje imię lub pseudonim, aby inni wiedzieli, kto dodaje zdjęcia i komentarze.</p>
           <form onSubmit={handleSaveName}>
             <input
               type="text"
@@ -86,32 +62,9 @@ export default function Home() {
               value={userName}
               onChange={(e) => setUserName(e.target.value)}
               required
-              style={{
-                width: '100%',
-                padding: '10px',
-                borderRadius: '6px',
-                border: '1px solid #444',
-                backgroundColor: '#222',
-                color: '#fff',
-                fontSize: '16px',
-                marginBottom: '15px',
-                boxSizing: 'border-box'
-              }}
+              className={styles.modalInput}
             />
-            <button
-              type="submit"
-              style={{
-                width: '100%',
-                padding: '10px',
-                borderRadius: '6px',
-                border: 'none',
-                backgroundColor: '#ff4b5c',
-                color: '#fff',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}
-            >
+            <button type="submit" className={styles.modalButton}>
               Zapisz i wejdź
             </button>
           </form>
