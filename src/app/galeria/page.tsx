@@ -27,22 +27,11 @@ interface MediaItem {
   createdAt: string;
 }
 
-interface UserProfile {
-  name: string;
-  avatarUrl: string;
-}
-
 export default function GalleryPage() {
   const [mediaList, setMediaList] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [uploading, setUploading] = useState<boolean>(false);
   const [uploadStatusText, setUploadStatusText] = useState<string>('');
-
-  // Stan profilu użytkownika i modalu
-  const [profile, setProfile] = useState<UserProfile>({ name: '', avatarUrl: '' });
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
-  const [tempName, setTempName] = useState<string>('');
-  const [tempAvatar, setTempAvatar] = useState<string>('');
 
   // Stan lightboxa i pokazu slajdów
   const [activeItemIndex, setActiveItemIndex] = useState<number | null>(null);
@@ -53,37 +42,9 @@ export default function GalleryPage() {
   // Stan nowego komentarza
   const [commentText, setCommentText] = useState<string>('');
 
-  // Inicjalizacja profilu z localStorage oraz pobranie mediów
   useEffect(() => {
-    const savedName = localStorage.getItem('gallery_user_name');
-    const savedAvatar = localStorage.getItem('gallery_user_avatar');
-
-    if (!savedName) {
-      setIsProfileModalOpen(true);
-    } else {
-      setProfile({
-        name: savedName,
-        avatarUrl: savedAvatar || '',
-      });
-    }
-
     fetchMedia();
   }, []);
-
-  const handleSaveProfile = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!tempName.trim()) return;
-
-    const newProfile = {
-      name: tempName.trim(),
-      avatarUrl: tempAvatar.trim(),
-    };
-
-    localStorage.setItem('gallery_user_name', newProfile.name);
-    localStorage.setItem('gallery_user_avatar', newProfile.avatarUrl);
-    setProfile(newProfile);
-    setIsProfileModalOpen(false);
-  };
 
   const fetchMedia = async () => {
     try {
@@ -97,6 +58,13 @@ export default function GalleryPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Pomocnicza funkcja pobierająca aktualnego użytkownika z localStorage
+  const getCurrentUser = () => {
+    const name = localStorage.getItem('gallery_user_name') || 'Gość';
+    const avatarUrl = localStorage.getItem('gallery_user_avatar') || '';
+    return { name, avatarUrl };
   };
 
   // Generowanie miniaturki dla wideo (zgodne z iOS/WebKit)
@@ -138,8 +106,9 @@ export default function GalleryPage() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    if (!profile.name) {
-      setIsProfileModalOpen(true);
+    const user = getCurrentUser();
+    if (!localStorage.getItem('gallery_user_name')) {
+      window.location.href = '/';
       return;
     }
 
@@ -166,7 +135,7 @@ export default function GalleryPage() {
         const filePath = `uploads/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('media-bucket') // Upewnij się, że masz taki bucket lub zmień nazwę
+          .from('media-bucket')
           .upload(filePath, file);
 
         if (uploadError) throw uploadError;
@@ -186,8 +155,8 @@ export default function GalleryPage() {
             url: publicUrl,
             thumbUrl: thumbBase64 || publicUrl,
             type: isVideo ? 'video' : 'image',
-            authorName: profile.name,
-            authorAvatar: profile.avatarUrl,
+            authorName: user.name,
+            authorAvatar: user.avatarUrl,
           }),
         });
 
@@ -212,13 +181,12 @@ export default function GalleryPage() {
   const handleLike = async (item: MediaItem, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const likedKey = `liked_${item.id}`;
-    const alreadyLiked = localStorage.getItem(likedKey);
+    const alreadyLiked = typeof window !== 'undefined' && Boolean(localStorage.getItem(likedKey));
 
-    if (alreadyLiked) return; // Zapobiegaj ponownemu polubieniu
+    if (alreadyLiked) return;
 
     const newLikes = item.likes + 1;
 
-    // Aktualizacja optymistyczna UI
     setMediaList((prev) =>
       prev.map((m) => (m.id === item.id ? { ...m, likes: newLikes } : m))
     );
@@ -239,8 +207,10 @@ export default function GalleryPage() {
   // Dodawanie komentarza
   const handleAddComment = async (itemId: string) => {
     if (!commentText.trim()) return;
-    if (!profile.name) {
-      setIsProfileModalOpen(true);
+    const user = getCurrentUser();
+
+    if (!localStorage.getItem('gallery_user_name')) {
+      window.location.href = '/';
       return;
     }
 
@@ -249,8 +219,8 @@ export default function GalleryPage() {
 
     const newComment: Comment = {
       id: Date.now().toString(),
-      authorName: profile.name,
-      authorAvatar: profile.avatarUrl,
+      authorName: user.name,
+      authorAvatar: user.avatarUrl,
       text: commentText.trim(),
       createdAt: new Date().toISOString(),
     };
@@ -290,7 +260,6 @@ export default function GalleryPage() {
         );
       }, 4000);
     } else if (currentItem.type === 'video') {
-      // Dla wideo czekamy na zdarzenie onEnded lub referencję, w razie awarii timerek zabezpieczający
       if (activeVideoRef.current) {
         activeVideoRef.current.currentTime = 0;
         activeVideoRef.current.play().catch(() => {});
@@ -322,27 +291,12 @@ export default function GalleryPage() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Przycisk profilu użytkownika */}
-          <button
-            onClick={() => {
-              setTempName(profile.name);
-              setTempAvatar(profile.avatarUrl);
-              setIsProfileModalOpen(true);
-            }}
-            className="flex items-center gap-3 bg-slate-900 border border-slate-800 hover:border-slate-700 px-4 py-2 rounded-xl transition"
+          <a
+            href="/"
+            className="text-xs text-slate-400 hover:text-white underline underline-offset-4 transition"
           >
-            {profile.avatarUrl ? (
-              <img src={profile.avatarUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-sm">
-                {profile.name ? profile.name.charAt(0).toUpperCase() : '?'}
-              </div>
-            )}
-            <div className="text-left">
-              <div className="text-xs text-slate-400">Zalogowany jako</div>
-              <div className="text-sm font-medium">{profile.name || 'Ustaw tożsamość'}</div>
-            </div>
-          </button>
+            Strona główna
+          </a>
 
           {/* Przycisk dodawania */}
           <label className="cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center gap-2">
@@ -557,48 +511,6 @@ export default function GalleryPage() {
                 Wyślij
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL TOŻSAMOŚCI UŻYTKOWNIKA */}
-      {isProfileModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <h2 className="text-xl font-bold mb-2">Przedstaw się</h2>
-            <p className="text-slate-400 text-sm mb-6">Wprowadź swoje imię oraz opcjonalny awatar, aby inni wiedzieli, kto dodaje zdjęcia i komentarze.</p>
-
-            <form onSubmit={handleSaveProfile} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Twoje imię lub pseudonim *</label>
-                <input
-                  type="text"
-                  required
-                  value={tempName}
-                  onChange={(e) => setTempName(e.target.value)}
-                  placeholder="np. Jan Kowalski"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Link do zdjęcia profilowego (opcjonalnie)</label>
-                <input
-                  type="url"
-                  value={tempAvatar}
-                  onChange={(e) => setTempAvatar(e.target.value)}
-                  placeholder="https://example.com/avatar.jpg"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20 mt-2"
-              >
-                Zapisz i kontynuuj
-              </button>
-            </form>
           </div>
         </div>
       )}
