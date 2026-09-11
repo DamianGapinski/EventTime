@@ -178,29 +178,13 @@ export default function GaleriaPage() {
 
         if (!isImage && !isVideo) continue;
 
-        setUploadStatusText(`Optymalizacja pliku ${currentFileIndex}/${totalFiles}...`);
-        
-        let fileToSend: Blob = file;
-        let thumbUrl = '';
-        let fileName = file.name;
-        let contentType = file.type;
+        // 1. Najpierw pobieramy URL do S3 dla pliku
+        const fileName = isImage 
+          ? `${file.name.substring(0, file.name.lastIndexOf('.')) || file.name}.webp`
+          : file.name;
+        const contentType = isImage ? 'image/webp' : file.type;
 
-        if (isImage) {
-          const processed = await processUploadedImage(file);
-          // Dopasuj te właściwości do tego, co faktycznie zwraca Twój plik /lib/imageOptimizer.ts
-          fileToSend = (processed as any).blob || (processed as any).file || processed;
-          thumbUrl = (processed as any).thumb || (processed as any).url || '';
-          fileName = `${file.name.substring(0, file.name.lastIndexOf('.')) || file.name}.webp`;
-          contentType = 'image/webp';
-        }else {
-          try {
-            thumbUrl = await generateVideoThumbnail(file);
-          } catch (videoErr) {
-            console.error('Błąd miniatury wideo:', videoErr);
-          }
-        }
-
-        setUploadStatusText(`Wysyłanie (${currentFileIndex}/${totalFiles})...`);
+        setUploadStatusText(`Przygotowanie pliku ${currentFileIndex}/${totalFiles}...`);
         const uploadRequest = await fetch('/api/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -212,19 +196,38 @@ export default function GaleriaPage() {
           throw new Error('Błąd pobierania URL dla S3');
         }
 
+        // 2. Optymalizujemy obrazek (jeśli to grafika)
+        let fileToSend: Blob = file;
+        let thumbUrl = uploadData.publicUrl;
+
+        if (isImage) {
+          setUploadStatusText(`Optymalizacja ${currentFileIndex}/${totalFiles}...`);
+          const processed = await processUploadedImage(file);
+          fileToSend = (processed as any).blob || (processed as any).file || processed;
+        } else {
+          try {
+            thumbUrl = await generateVideoThumbnail(file) || uploadData.publicUrl;
+          } catch (videoErr) {
+            console.error('Błąd miniatury wideo:', videoErr);
+          }
+        }
+
+        // 3. Wysyłamy plik na S3
+        setUploadStatusText(`Wysyłanie (${currentFileIndex}/${totalFiles})...`);
         await fetch(uploadData.uploadUrl, {
           method: 'PUT',
           headers: { 'Content-Type': contentType },
           body: fileToSend,
         });
 
+        // 4. Zapisujemy w bazie danych
         setUploadStatusText(`Zapisywanie (${currentFileIndex}/${totalFiles})...`);
         const dbRes = await fetch('/api/media', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             url: uploadData.publicUrl,
-            thumbSrc: uploadData.publicUrl, // Używamy publicznego URL z S3 zamiast lokalnego bloba
+            thumbSrc: uploadData.publicUrl, // Używamy stabilnego linku S3 zamiast bloba
             type: isVideo ? 'video' : 'image',
             authorName: 'Gość',
           }),
@@ -236,7 +239,7 @@ export default function GaleriaPage() {
             id: dbData.data.id,
             type: dbData.data.type,
             src: uploadData.publicUrl,
-            thumbSrc: uploadData.publicUrl, // Zapewniamy stały link z S3
+            thumbSrc: uploadData.publicUrl,
             alt: fileName,
             authorName: dbData.data.authorName,
             likes: dbData.data.likes,
