@@ -211,11 +211,13 @@ export default function GaleriaPage() {
       const { error: dbError } = await supabase.from('media').insert([
   {
     url: uploadData.publicUrl,
-    thumbnail_url: uploadData.publicUrl,
     type: isVideo ? 'video' : 'image',
-    // Usunięto kolumnę status, której brakuje w bazie
   },
 ]);
+
+if (dbError) {
+  console.error('Błąd zapisu do Supabase:', dbError);
+}
 
       if (dbError) {
         console.error('Błąd zapisu do Supabase:', dbError);
