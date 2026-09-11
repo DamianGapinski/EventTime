@@ -167,73 +167,70 @@ export default function GaleriaPage() {
   }, [selectedMedia, isSlideshowActive]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const files = e.target.files;
-  if (!files || files.length === 0) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-  setIsUploading(true);
-  setUploadProgress(0);
-  const totalFiles = files.length;
+    setIsUploading(true);
+    setUploadProgress(0);
+    const totalFiles = files.length;
 
-  try {
-    for (let i = 0; i < totalFiles; i++) {
-      const file = files[i];
-      const currentFileIndex = i + 1;
-      const isVideo = file.type.startsWith('video/');
+    try {
+      for (let i = 0; i < totalFiles; i++) {
+        const file = files[i];
+        const currentFileIndex = i + 1;
+        const isVideo = file.type.startsWith('video/');
 
-      // 1. Pobranie presigned URL z API (używamy 'filename' i 'contentType')
-      setUploadStatusText(`Przygotowanie pliku ${currentFileIndex}/${totalFiles}...`);
-      
-      const res = await fetch('/api/upload', {
-  method: 'POST', // ZAWSZE POST!
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ filename: file.name, contentType: file.type }),
-});
+        // 1. Pobranie presigned URL z API
+        setUploadStatusText(`Przygotowanie pliku ${currentFileIndex}/${totalFiles}...`);
+        
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: file.name, contentType: file.type }),
+        });
 
-      const uploadData = await res.json();
-      if (!uploadData.success || !uploadData.uploadUrl) {
-        throw new Error('Nie udało się pobrać URL do przesyłania.');
+        const uploadData = await res.json();
+        if (!uploadData.success || !uploadData.uploadUrl) {
+          throw new Error('Nie udało się pobrać URL do przesyłania.');
+        }
+
+        // 2. Bezpośredni upload surowego pliku do S3
+        setUploadStatusText(`Wysyłanie pliku ${currentFileIndex}/${totalFiles} do S3...`);
+        const uploadRes = await fetch(uploadData.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type },
+          body: file,
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error('Błąd podczas wysyłania pliku na S3.');
+        }
+
+        // 3. Zapis do bazy danych Supabase (tylko kolumny, które faktycznie istnieją)
+        setUploadStatusText(`Zapisywanie w bazie ${currentFileIndex}/${totalFiles}...`);
+        const { error: dbError } = await supabase.from('media').insert([
+          {
+            url: uploadData.publicUrl,
+            type: isVideo ? 'video' : 'image',
+          },
+        ]);
+
+        if (dbError) {
+          console.error('Błąd zapisu do Supabase:', dbError);
+        }
+
+        setUploadProgress(Math.round((currentFileIndex / totalFiles) * 100));
       }
 
-      // 2. Bezpośredni upload surowego pliku do S3
-      setUploadStatusText(`Wysyłanie pliku ${currentFileIndex}/${totalFiles} do S3...`);
-      const uploadRes = await fetch(uploadData.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      });
-
-      if (!uploadRes.ok) {
-        throw new Error('Błąd podczas wysyłania pliku na S3.');
-      }
-
-      // 3. Zapis do bazy danych Supabase ze statusem "processing" dla wideo
-      setUploadStatusText(`Zapisywanie w bazie ${currentFileIndex}/${totalFiles}...`);
-      const { error: dbError } = await supabase.from('media').insert([
-  {
-    url: uploadData.publicUrl,
-    type: isVideo ? 'video' : 'image',
-  },
-]);
-
-if (dbError) {
-  console.error('Błąd zapisu do Supabase:', dbError);
-}
-
-      if (dbError) {
-        console.error('Błąd zapisu do Supabase:', dbError);
-      }
-
-      setUploadProgress(Math.round((currentFileIndex / totalFiles) * 100));
+      setUploadStatusText('Wszystkie pliki zostały pomyślnie przesłane!');
+      fetchMedia(); // Odśwież galerię od razu po zakończeniu
+    } catch (error) {
+      console.error('Błąd podczas przesyłania plików:', error);
+      setUploadStatusText('Wystąpił błąd podczas przesyłania.');
+    } finally {
+      setIsUploading(false);
     }
-
-    setUploadStatusText('Wszystkie pliki zostały pomyślnie przesłane!');
-  } catch (error) {
-    console.error('Błąd podczas przesyłania plików:', error);
-    setUploadStatusText('Wystąpił błąd podczas przesyłania.');
-  } finally {
-    setIsUploading(false);
-  }
-};
+  };
 
   const handleToggleLike = async (id: string | number) => {
     const targetItem = mediaItems.find((item) => item.id === id);
