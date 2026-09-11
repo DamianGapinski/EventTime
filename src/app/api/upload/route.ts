@@ -15,7 +15,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { filename, contentType } = body;
 
-    const key = `media/raw/${Date.now()}-${filename}`;
+    // Plik ląduje bezpośrednio w głównym folderze S3
+    const key = `${Date.now()}-${filename}`;
 
     const command = new PutObjectCommand({
       Bucket: process.env.AWS_S3_BUCKET_NAME!,
