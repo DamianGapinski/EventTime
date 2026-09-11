@@ -13,6 +13,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1124.0",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
+    "@supabase/supabase-js": "^2.116.0",
     "@uploadthing/react": "^6.6.0",
     "cloudinary": "^2.11.0",
     "googleapis": "^176.0.0",
