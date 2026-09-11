@@ -6,7 +6,7 @@ export default function Home() {
   return (
     <>
     <header>
-      <h1><strong>Event Time</strong><br/><br/> Uwiecznij wszystkie chwile</h1>
+      <h1><strong>Damian & Viktoria</strong><br/><br/> Uwiecznij wszystkie chwile</h1>
       
       <Link href="/galeria">
       <button>Przejdź do aplikacji</button>
