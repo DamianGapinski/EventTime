@@ -209,13 +209,13 @@ export default function GaleriaPage() {
       // 3. Zapis do bazy danych Supabase ze statusem "processing" dla wideo
       setUploadStatusText(`Zapisywanie w bazie ${currentFileIndex}/${totalFiles}...`);
       const { error: dbError } = await supabase.from('media').insert([
-        {
-          url: uploadData.publicUrl,
-          thumbnail_url: uploadData.publicUrl,
-          type: isVideo ? 'video' : 'image',
-          status: isVideo ? 'processing' : 'ready',
-        },
-      ]);
+  {
+    url: uploadData.publicUrl,
+    thumbnail_url: uploadData.publicUrl,
+    type: isVideo ? 'video' : 'image',
+    // Usunięto kolumnę status, której brakuje w bazie
+  },
+]);
 
       if (dbError) {
         console.error('Błąd zapisu do Supabase:', dbError);
