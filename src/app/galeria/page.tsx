@@ -335,29 +335,28 @@ export default function GaleriaPage() {
                 }}
               >
                 {item.type === 'image' ? (
-                  <Image
-                    src={item.thumbSrc || item.src}
-                    alt={item.alt}
-                    width={400}
-                    height={600}
-                    unoptimized
-                    className="gallery-thumb"
-                    onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
-                  />
-                ) : (
-                  <div className="video-thumb-container">
-                    <video
-                      src={item.thumbSrc || item.src}
-                      preload="metadata"
-                      poster={item.thumbSrc}
-                      className="gallery-thumb object-cover"
-                      onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
-                    />
-                    <div className="play-overlay">
-                      <span className="play-icon">▶</span>
-                    </div>
-                  </div>
-                )}
+  <Image
+    src={item.thumbSrc || item.src}
+    alt={item.alt}
+    width={400}
+    height={600}
+    unoptimized
+    className="gallery-thumb"
+    onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
+  />
+) : (
+  <div className="video-thumb-container">
+    <video
+      src={item.src}
+      preload="metadata"
+      className="gallery-thumb object-cover"
+      onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
+    />
+    <div className="play-overlay">
+      <span className="play-icon">▶</span>
+    </div>
+  </div>
+)}
               </div>
             ))}
         </div>
