@@ -6,6 +6,7 @@ import { processUploadedImage } from '@/lib/imageOptimizer';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Image as GalleryIcon, Gamepad2, Mail } from 'lucide-react';
+import { optimizeVideo } from '@/lib/videoOptimizer';
 
 interface Comment {
   id: string;
