@@ -139,8 +139,15 @@ export default function GaleriaPage() {
     }
   };
 
-  useEffect(() => {
-    fetchMedia();
+ useEffect(() => {
+    fetchMedia(); // Pobierz od razu po załadowaniu
+
+    // Pobieraj co 5 sekund, żeby widzieć zdjęcia dodane przez inne osoby
+    const interval = setInterval(() => {
+      fetchMedia();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const nextSlide = () => {
