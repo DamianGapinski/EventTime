@@ -56,7 +56,7 @@ export default function Home() {
         <h1><strong>Damian & Viktoria</strong><br/><br/> Uwiecznij wszystkie chwile</h1>
       </header>
       <main>
-        {userName && <p style={{ textAlign: 'center', marginBottom: '20px' }}>Witaj, <strong>{userName}</strong>!</p>}
+        
         
         <div style={{ textAlign: 'center', margin: '20px 0' }}>
           <Link href="/galeria" style={{ padding: '12px 24px', background: '#0070f3', color: '#fff', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold' }}>
