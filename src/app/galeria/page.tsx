@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Image as GalleryIcon, Gamepad2, Mail } from 'lucide-react';
 import { optimizeVideo } from '@/lib/videoOptimizer';
+import { supabase } from '@/lib/supabase'; // lub ścieżka do Twojego pliku z klientem Supabase
 
 interface Comment {
   id: string;
@@ -95,6 +96,7 @@ export default function GaleriaPage() {
   const [isSlideshowActive, setIsSlideshowActive] = useState(false);
   const [errorImages, setErrorImages] = useState<Record<string, boolean>>({});
   const [uploadStatusText, setUploadStatusText] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
   
   const pathname = usePathname();
 
@@ -162,99 +164,118 @@ export default function GaleriaPage() {
     return () => clearInterval(interval);
   }, [selectedMedia, isSlideshowActive]);
 
-  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     setIsUploading(true);
-    const fileArray = Array.from(files);
-    const totalFiles = fileArray.length;
+    setUploadProgress(0);
+    const totalFiles = files.length;
 
     try {
-      for (let i = 0; i < fileArray.length; i++) {
-        const file = fileArray[i];
+      for (let i = 0; i < totalFiles; i++) {
+        const file = files[i];
         const currentFileIndex = i + 1;
-        const isVideo = file.type.startsWith('video/');
         const isImage = file.type.startsWith('image/');
+        const isVideo = file.type.startsWith('video/');
 
-        if (!isImage && !isVideo) continue;
-
-        // 1. Najpierw pobieramy URL do S3 dla pliku
-        const fileName = isImage 
-          ? `${file.name.substring(0, file.name.lastIndexOf('.')) || file.name}.webp`
-          : file.name;
-        const contentType = isImage ? 'image/webp' : file.type;
-
-        setUploadStatusText(`Przygotowanie pliku ${currentFileIndex}/${totalFiles}...`);
-        const uploadRequest = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: fileName, contentType }),
-        });
-
-        const uploadData = await uploadRequest.json();
-        if (!uploadData.success || !uploadData.uploadUrl) {
-          throw new Error('Błąd pobierania URL dla S3');
-        }
-
-        // 2. Optymalizujemy obrazek (jeśli to grafika)
         let fileToSend: Blob = file;
-        let thumbUrl = uploadData.publicUrl;
+        let finalThumbnailUrl = '';
 
+        // 1. Optymalizacja obrazu lub wideo przed wysyłką
         if (isImage) {
-          setUploadStatusText(`Optymalizacja ${currentFileIndex}/${totalFiles}...`);
+          setUploadStatusText(`Optymalizacja obrazu ${currentFileIndex}/${totalFiles}...`);
           const processed = await processUploadedImage(file);
           fileToSend = (processed as any).blob || (processed as any).file || processed;
-        } else {
+        } else if (isVideo) {
+          setUploadStatusText(`Kompresja wideo (FFmpeg) ${currentFileIndex}/${totalFiles}...`);
+          fileToSend = await optimizeVideo(file, (p) => {
+            setUploadStatusText(`Kompresja wideo (${p}%) - plik ${currentFileIndex}/${totalFiles}`);
+          });
+
           try {
-            thumbUrl = await generateVideoThumbnail(file) || uploadData.publicUrl;
-          } catch (videoErr) {
-            console.error('Błąd miniatury wideo:', videoErr);
+            setUploadStatusText(`Generowanie miniatury wideo ${currentFileIndex}/${totalFiles}...`);
+            const thumbBlob = await generateVideoThumbnail(file);
+            if (thumbBlob) {
+              const thumbFileName = `thumbnails/${Date.now()}_${Math.random().toString(36).substring(2, 9)}.jpg`;
+              const thumbUploadRes = await fetch('/api/upload-url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fileName: thumbFileName, fileType: 'image/jpeg' }),
+              });
+              const thumbData = await thumbUploadRes.json();
+              
+              if (thumbData.uploadUrl) {
+                await fetch(thumbData.uploadUrl, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'image/jpeg' },
+                  body: thumbBlob,
+                });
+                finalThumbnailUrl = thumbData.publicUrl;
+              }
+            }
+          } catch (thumbErr) {
+            console.error('Błąd podczas generowania/wysyłania miniatury wideo:', thumbErr);
           }
         }
 
-        // 3. Wysyłamy plik na S3
-        setUploadStatusText(`Wysyłanie (${currentFileIndex}/${totalFiles})...`);
-        await fetch(uploadData.uploadUrl, {
+        // 2. Pobranie presigned URL z Twojego API dla właściwego pliku
+        setUploadStatusText(`Przygotowanie do wysyłki ${currentFileIndex}/${totalFiles}...`);
+        const fileExtension = isVideo ? 'mp4' : file.name.split('.').pop() || 'bin';
+        const fileName = `media/${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExtension}`;
+        const fileType = isVideo ? 'video/mp4' : file.type;
+
+        const res = await fetch('/api/upload-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName, fileType }),
+        });
+
+        const uploadData = await res.json();
+        if (!uploadData.uploadUrl) {
+          throw new Error('Nie udało się pobrać URL do przesyłania.');
+        }
+
+        // 3. Wysyłka pliku bezpośrednio do S3
+        setUploadStatusText(`Wysyłanie pliku ${currentFileIndex}/${totalFiles}...`);
+        const uploadRes = await fetch(uploadData.uploadUrl, {
           method: 'PUT',
-          headers: { 'Content-Type': contentType },
+          headers: { 'Content-Type': fileType },
           body: fileToSend,
         });
 
-        // 4. Zapisujemy w bazie danych
-        setUploadStatusText(`Zapisywanie (${currentFileIndex}/${totalFiles})...`);
-        const dbRes = await fetch('/api/media', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: uploadData.publicUrl,
-            thumbSrc: uploadData.publicUrl, // Używamy stabilnego linku S3 zamiast bloba
-            type: isVideo ? 'video' : 'image',
-            authorName: 'Gość',
-          }),
-        });
-
-        const dbData = await dbRes.json();
-        if (dbData.success && dbData.data) {
-          const newItem: MediaItem = {
-            id: dbData.data.id,
-            type: dbData.data.type,
-            src: uploadData.publicUrl,
-            thumbSrc: uploadData.publicUrl,
-            alt: fileName,
-            authorName: dbData.data.authorName,
-            likes: dbData.data.likes,
-            comments: dbData.data.comments,
-          };
-          setMediaItems((prev) => [newItem, ...prev]);
+        if (!uploadRes.ok) {
+          throw new Error('Błąd podczas wysyłania pliku na S3.');
         }
+
+        const mediaUrl = uploadData.publicUrl;
+        if (isImage) {
+          finalThumbnailUrl = mediaUrl;
+        }
+
+        // 4. Zapis do bazy danych Supabase
+        setUploadStatusText(`Zapisywanie w bazie ${currentFileIndex}/${totalFiles}...`);
+        const { error: dbError } = await supabase.from('media').insert([
+          {
+            url: mediaUrl,
+            thumbnail_url: finalThumbnailUrl || mediaUrl,
+            type: isVideo ? 'video' : 'image',
+          },
+        ]);
+
+        if (dbError) {
+          console.error('Błąd zapisu do Supabase:', dbError);
+        }
+
+        setUploadProgress(Math.round((currentFileIndex / totalFiles) * 100));
       }
-    } catch (err) {
-      console.error('Błąd wgrywania:', err);
+
+      setUploadStatusText('Wszystkie pliki zostały pomyślnie przesłane!');
+    } catch (error) {
+      console.error('Błąd podczas przesyłania plików:', error);
+      setUploadStatusText('Wystąpił błąd podczas przesyłania.');
     } finally {
       setIsUploading(false);
-      setUploadStatusText('');
-      e.target.value = '';
     }
   };
 
