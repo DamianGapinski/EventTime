@@ -84,10 +84,6 @@ export default function GaleriaPage() {
   const [uploadStatusText, setUploadStatusText] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Stany dla modala imienia użytkownika
-  const [isNameModalOpen, setIsNameModalOpen] = useState(false);
-  const [tempNameInput, setTempNameInput] = useState('');
-
   const pathname = usePathname();
 
   const navLinks = [
@@ -124,24 +120,10 @@ export default function GaleriaPage() {
   };
 
   useEffect(() => {
-    // Sprawdzenie czy użytkownik ma już zapisane imię w localStorage
-    const savedName = localStorage.getItem('userName');
-    if (!savedName) {
-      setIsNameModalOpen(true);
-    }
-
     fetchMedia();
     const interval = setInterval(fetchMedia, 5000);
     return () => clearInterval(interval);
   }, []);
-
-  const handleSaveName = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!tempNameInput.trim()) return;
-
-    localStorage.setItem('userName', tempNameInput.trim());
-    setIsNameModalOpen(false);
-  };
 
   const nextSlide = () => {
     if (!selectedMedia) return;
@@ -333,30 +315,6 @@ export default function GaleriaPage() {
 
   return (
     <>
-      {/* Modal pobierający imię (wyskakujący) */}
-      {isNameModalOpen && (
-  <div className="name-modal-overlay">
-    <div className="name-modal-content">
-      <h2>Jak masz na imię?</h2>
-      <p>Podaj swoje imię, aby inni wiedzieli, kto dodał wspomnienie lub zostawił komentarz.</p>
-      <form onSubmit={handleSaveName} className="name-modal-form">
-        <input
-          type="text"
-          placeholder="np. Jan Kowalski"
-          value={tempNameInput}
-          onChange={(e) => setTempNameInput(e.target.value)}
-          required
-          autoFocus
-          className="name-modal-input"
-        />
-        <button type="submit" className="name-modal-btn">
-          Zapisz i wejdź
-        </button>
-      </form>
-    </div>
-  </div>
-)}
-
       <div className="gallery-container">
         <div className="gallery-header">
           <h1>Galeria Wspomnień</h1>
