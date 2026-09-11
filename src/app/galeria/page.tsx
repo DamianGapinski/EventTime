@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect, ChangeEvent, useRef } from 'react';
-import Image from 'next/image';
+import { useState, useEffect, useRef, ChangeEvent } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Image as GalleryIcon, Gamepad2, Mail } from 'lucide-react';
+import { Home, Image as GalleryIcon, Gamepad2, Mail, Heart, MessageCircle, Share2, Play, Pause, Trash2, X, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 interface Comment {
   id: string;
+  name: string;
   text: string;
   createdAt: string;
 }
@@ -17,14 +17,21 @@ interface MediaItem {
   id: string | number;
   type: 'image' | 'video';
   src: string;
-  thumbSrc?: string;
-  alt: string;
-  authorName?: string;
+  thumbnail?: string;
   likes: number;
-  isLiked?: boolean;
   comments: Comment[];
+  author_name?: string;
 }
 
+const VersionBadge = () => {
+  const commitHash = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA
+    ? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA.substring(0, 7)
+    : 'dev-local';
+
+  return <div className="version-badge">v: {commitHash}</div>;
+};
+
+// Generowanie miniatury wideo z poprawką dla iOS Safari
 const generateVideoThumbnail = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
@@ -36,10 +43,9 @@ const generateVideoThumbnail = (file: File): Promise<string> => {
     video.playsInline = true;
     video.load();
 
-    // iOS Safari potrzebuje opóźnienia, żeby poprawnie zrenderować klatkę na canvasie
     video.onloadeddata = () => {
       setTimeout(() => {
-        video.currentTime = 0.5; // Pobieramy klatkę z 0.5 sekundy
+        video.currentTime = 0.5;
       }, 200);
     };
 
@@ -70,31 +76,22 @@ const generateVideoThumbnail = (file: File): Promise<string> => {
   });
 };
 
-const VersionBadge = () => {
-  const commitHash = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA
-    ? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA.substring(0, 7)
-    : 'dev-local';
-
-  return (
-    <div className="version-badge">
-      v: {commitHash}
-    </div>
-  );
-};
-
 export default function GaleriaPage() {
+  const pathname = usePathname();
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [uploading, setUploading] = useState<boolean>(false);
+  
+  // Stan modalu podglądu / pełnego ekranu
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
-  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
-  const [newCommentText, setNewCommentText] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-  const [isSlideshowActive, setIsSlideshowActive] = useState(false);
-  const [errorImages, setErrorImages] = useState<Record<string, boolean>>({});
-  const [uploadStatusText, setUploadStatusText] = useState('');
-  const [uploadProgress, setUploadProgress] = useState(0);
+  
+  // Stan Pokazu Slajdów
+  const [isSlideshowActive, setIsSlideshowActive] = useState<boolean>(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  const pathname = usePathname();
+  // Stan komentarzy
+  const [newCommentText, setNewCommentText] = useState<string>('');
+  const [userName, setUserName] = useState<string>('Gość');
 
   const navLinks = [
     { href: '/', icon: Home, label: 'Home' },
@@ -103,72 +100,48 @@ export default function GaleriaPage() {
     { href: '/contact', icon: Mail, label: 'Kontakt' },
   ];
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedName = localStorage.getItem('userName');
+      if (savedName) setUserName(savedName);
+    }
+    fetchMedia();
+  }, []);
+
   const fetchMedia = async () => {
     try {
-      const res = await fetch('/api/media', {
-        method: 'GET',
-        cache: 'no-store'
-      });
-      const data = await res.json();
+      const { data, error } = await supabase
+        .from('media')
+        .select('*')
+        .order('id', { ascending: false });
 
-      if (data.success && Array.isArray(data.data)) {
-        const fetchedItems: MediaItem[] = data.data.map((item: any, idx: number) => ({
-          id: item.id || `fetched-${idx}-${Date.now()}`,
-          type: item.type === 'video' ? 'video' : 'image',
-          src: item.url || item.src,
-          thumbSrc: item.thumbnail_url || item.thumbSrc,
-          alt: 'Zdjęcie z wydarzenia',
-          authorName: item.author_name || item.authorName || 'Gość',
-          likes: item.likes || 0,
-          comments: item.comments || [],
-        }));
-        setMediaItems(fetchedItems);
+      if (error) throw error;
+      if (data) {
+        setMediaItems(data.map((item: any) => ({
+          ...item,
+          comments: Array.isArray(item.comments) ? item.comments : [],
+          author_name: item.author_name || 'Gość'
+        })));
       }
     } catch (err) {
-      console.error('Błąd podczas pobierania galerii:', err);
+      console.error('Błąd pobierania mediów:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchMedia();
-    const interval = setInterval(fetchMedia, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const nextSlide = () => {
-    if (!selectedMedia) return;
-    setMediaItems((currentItems) => {
-      const currentIndex = currentItems.findIndex((m) => m.id === selectedMedia.id);
-      const nextIndex = (currentIndex + 1) % currentItems.length;
-      setSelectedMedia(currentItems[nextIndex]);
-      return currentItems;
-    });
-  };
-
-  const prevSlide = () => {
-    if (!selectedMedia) return;
-    setMediaItems((currentItems) => {
-      const currentIndex = currentItems.findIndex((m) => m.id === selectedMedia.id);
-      const prevIndex = (currentIndex - 1 + currentItems.length) % currentItems.length;
-      setSelectedMedia(currentItems[prevIndex]);
-      return currentItems;
-    });
-  };
-
+  // Inteligentny pokaz slajdów: zdjęcia trwają 4s, wideo czeka na zdarzenie onEnded
   useEffect(() => {
     let timeout: NodeJS.Timeout;
 
     if (selectedMedia && isSlideshowActive) {
-      // Jeśli aktualny element to zdjęcie, przełącz po 4 sekundach
       if (selectedMedia.type === 'image') {
         timeout = setTimeout(() => {
           nextSlide();
         }, 4000);
       } else {
-        // Jeśli to wideo, upewniamy się, że jest odtwarzane (jeśli użytkownik dopiero włączył pokaz)
         if (videoRef.current) {
           videoRef.current.play().catch(() => {
-            // W razie zablokowania autoplaya przez przeglądarkę przechodzimy dalej po 4s
             timeout = setTimeout(() => nextSlide(), 4000);
           });
         }
@@ -178,122 +151,108 @@ export default function GaleriaPage() {
     return () => clearTimeout(timeout);
   }, [selectedMedia, isSlideshowActive]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const nextSlide = () => {
+    if (!selectedMedia || mediaItems.length === 0) return;
+    const currentIndex = mediaItems.findIndex((m) => m.id === selectedMedia.id);
+    const nextIndex = (currentIndex + 1) % mediaItems.length;
+    setSelectedMedia(mediaItems[nextIndex]);
+  };
+
+  const prevSlide = () => {
+    if (!selectedMedia || mediaItems.length === 0) return;
+    const currentIndex = mediaItems.findIndex((m) => m.id === selectedMedia.id);
+    const prevIndex = (currentIndex - 1 + mediaItems.length) % mediaItems.length;
+    setSelectedMedia(mediaItems[prevIndex]);
+  };
+
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    setIsUploading(true);
-    setUploadProgress(0);
-    const totalFiles = files.length;
-
+    setUploading(true);
     try {
-      for (let i = 0; i < totalFiles; i++) {
+      for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const currentFileIndex = i + 1;
-        const isVideo = file.type.startsWith('video/');
+        const isVideo = file.type.startsWith('video');
+        let thumbnailUrl = '';
 
-        let thumbBase64 = '';
         if (isVideo) {
-          setUploadStatusText(`Generowanie miniaturki ${currentFileIndex}/${totalFiles}...`);
           try {
-            thumbBase64 = await generateVideoThumbnail(file);
-          } catch (thumbErr) {
-            console.warn('Nie udało się wygenerować miniaturki wideo:', thumbErr);
+            thumbnailUrl = await generateVideoThumbnail(file);
+          } catch (err) {
+            console.error('Nie udało się wygenerować miniatury wideo', err);
           }
         }
 
-        setUploadStatusText(`Przygotowanie pliku ${currentFileIndex}/${totalFiles}...`);
-        
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: file.name, contentType: file.type }),
-        });
+        const fileName = `${Date.now()}_${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('media-bucket')
+          .upload(fileName, file);
 
-        const uploadData = await res.json();
-        if (!uploadData.success || !uploadData.uploadUrl) {
-          throw new Error('Nie udało się pobrać URL do przesyłania.');
-        }
+        if (uploadError) throw uploadError;
 
-        setUploadStatusText(`Wysyłanie pliku ${currentFileIndex}/${totalFiles} do S3...`);
-        const uploadRes = await fetch(uploadData.uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': file.type },
-          body: file,
-        });
+        const { data: publicUrlData } = supabase.storage
+          .from('media-bucket')
+          .getPublicUrl(fileName);
 
-        if (!uploadRes.ok) {
-          throw new Error('Błąd podczas wysyłania pliku na S3.');
-        }
+        const mediaUrl = publicUrlData.publicUrl;
 
-        setUploadStatusText(`Zapisywanie w bazie ${currentFileIndex}/${totalFiles}...`);
-        const authorName = typeof window !== 'undefined' ? localStorage.getItem('userName') || 'Gość' : 'Gość';
-        
-        const { error: dbError } = await supabase.from('media').insert([
-          {
-            url: uploadData.publicUrl,
-            type: isVideo ? 'video' : 'image',
-            author_name: authorName,
-            likes: 0,
-            comments: [],
-          },
-        ]);
-
-        if (dbError) {
-          console.error('Błąd zapisu do Supabase:', dbError);
-        }
-
-        const newItem: MediaItem = {
-          id: `local-${Date.now()}-${i}`,
+        const newItem = {
           type: isVideo ? 'video' : 'image',
-          src: uploadData.publicUrl,
-          thumbSrc: isVideo ? thumbBase64 : uploadData.publicUrl,
-          alt: file.name,
-          authorName: authorName,
+          src: mediaUrl,
+          thumbnail: isVideo ? thumbnailUrl : mediaUrl,
           likes: 0,
           comments: [],
+          author_name: userName,
         };
-        setMediaItems((prev) => [newItem, ...prev]);
 
-        setUploadProgress(Math.round((currentFileIndex / totalFiles) * 100));
+        const { data: insertedData, error: dbError } = await supabase
+          .from('media')
+          .insert([newItem])
+          .select()
+          .single();
+
+        if (dbError) throw dbError;
+
+        if (insertedData) {
+          setMediaItems((prev) => [
+            {
+              ...insertedData,
+              comments: Array.isArray(insertedData.comments) ? insertedData.comments : [],
+              author_name: insertedData.author_name || 'Gość'
+            },
+            ...prev
+          ]);
+        }
       }
-
-      setUploadStatusText('Wszystkie pliki zostały pomyślnie przesłane!');
-      fetchMedia();
-    } catch (error) {
-      console.error('Błąd podczas przesyłania plików:', error);
-      setUploadStatusText('Wystąpił błąd podczas przesyłania.');
+    } catch (err) {
+      console.error('Błąd podczas przesyłania:', err);
+      alert('Wystąpił błąd podczas wysyłania pliku.');
     } finally {
-      setIsUploading(false);
+      setUploading(false);
+      e.target.value = '';
     }
   };
 
-  const handleToggleLike = async (id: string | number) => {
-    const targetItem = mediaItems.find((item) => item.id === id);
-    if (!targetItem) return;
-
-    const newIsLiked = !targetItem.isLiked;
-    const newLikes = newIsLiked ? targetItem.likes + 1 : targetItem.likes - 1;
+  const handleLike = async (item: MediaItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const updatedLikes = item.likes + 1;
 
     setMediaItems((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          const updated = { ...item, likes: newLikes, isLiked: newIsLiked };
-          if (selectedMedia?.id === id) setSelectedMedia(updated);
-          return updated;
-        }
-        return item;
-      })
+      prev.map((m) => (m.id === item.id ? { ...m, likes: updatedLikes } : m))
     );
 
+    if (selectedMedia && selectedMedia.id === item.id) {
+      setSelectedMedia({ ...selectedMedia, likes: updatedLikes });
+    }
+
     try {
-      await fetch('/api/media', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, likes: newLikes }),
-      });
+      await supabase
+        .from('media')
+        .update({ likes: updatedLikes })
+        .eq('id', item.id);
     } catch (err) {
-      console.error('Błąd zapisu lajka:', err);
+      console.error('Błąd polubienia:', err);
     }
   };
 
@@ -303,6 +262,7 @@ export default function GaleriaPage() {
 
     const newComment: Comment = {
       id: Date.now().toString(),
+      name: userName,
       text: newCommentText.trim(),
       createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
@@ -322,194 +282,245 @@ export default function GaleriaPage() {
     setNewCommentText('');
 
     try {
-      await fetch('/api/media', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selectedMedia.id, comments: updatedComments }),
-      });
+      await supabase
+        .from('media')
+        .update({ comments: updatedComments })
+        .eq('id', selectedMedia.id);
     } catch (err) {
       console.error('Błąd zapisu komentarza:', err);
     }
   };
 
-  const closeModal = () => {
-    setSelectedMedia(null);
-    setIsCommentsOpen(false);
-    setIsSlideshowActive(false);
+  const handleDelete = async (id: string | number) => {
+    if (!confirm('Czy na pewno chcesz usunąć ten element?')) return;
+    try {
+      await supabase.from('media').delete().eq('id', id);
+      setMediaItems((prev) => prev.filter((item) => item.id !== id));
+      setSelectedMedia(null);
+      setIsSlideshowActive(false);
+    } catch (err) {
+      console.error('Błąd usuwania:', err);
+    }
   };
 
   return (
     <>
-      <div className="gallery-container">
-        <div className="gallery-header">
-          <h1>Galeria Wspomnień</h1>
-          <section className="upload-section flex flex-col items-center gap-2">
-            <label className="upload-button cursor-pointer">
-              {isUploading ? uploadStatusText : 'Prześlij wspomnienie'}
+      <div className="gallery-container" style={{ paddingBottom: '100px' }}>
+        <div className="gallery-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div>
+            <h1>Galeria Wspomnień</h1>
+            <p style={{ color: '#666', fontSize: '13px' }}>Cześć, <strong>{userName}</strong>!</p>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '10px' }}>
+            {mediaItems.length > 0 && (
+              <button
+                onClick={() => {
+                  setSelectedMedia(mediaItems[0]);
+                  setIsSlideshowActive(true);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: '#10b981',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                <Play size={18} /> Pokaz slajdów
+              </button>
+            )}
+
+            <label className="upload-btn" style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: '#0070f3',
+              color: '#fff',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}>
+              <Plus size={18} /> {uploading ? 'Wysyłanie...' : 'Dodaj'}
               <input
                 type="file"
                 accept="image/*,video/*"
                 multiple
-                disabled={isUploading}
                 onChange={handleFileUpload}
-                className="file-input hidden"
+                disabled={uploading}
+                style={{ display: 'none' }}
               />
             </label>
-          </section>
+          </div>
         </div>
 
-        <div className="masonry-grid">
-          {mediaItems
-            .filter((item) => !errorImages[item.id])
-            .map((item) => (
+        {loading ? (
+          <p style={{ textAlign: 'center', color: '#888', marginTop: '40px' }}>Ładowanie wspomnień...</p>
+        ) : mediaItems.length === 0 ? (
+          <p style={{ textAlign: 'center', color: '#888', marginTop: '40px' }}>Brak zdjęć i filmów. Dodaj pierwsze wspomnienie!</p>
+        ) : (
+          <div className="gallery-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
+            {mediaItems.map((item) => (
               <div
                 key={item.id}
-                className="masonry-item"
                 onClick={() => {
                   setSelectedMedia(item);
                   setIsSlideshowActive(false);
                 }}
+                style={{
+                  position: 'relative',
+                  aspectRatio: '1',
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                  background: '#000',
+                }}
               >
-                {item.type === 'image' ? (
-                  <Image
-                    src={item.thumbSrc || item.src}
-                    alt={item.alt}
-                    width={400}
-                    height={600}
-                    unoptimized
-                    className="gallery-thumb"
-                    onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
-                  />
-                ) : (
-                  <div className="video-thumb-container">
-                    <video
-                      src={item.src}
-                      preload="metadata"
-                      className="gallery-thumb object-cover"
-                      onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
-                    />
-                    <div className="play-overlay">
-                      <span className="play-icon">▶</span>
-                    </div>
-                  </div>
-                )}
+                <img
+                  src={item.type === 'video' ? (item.thumbnail || item.src) : item.src}
+                  alt="wspomnienie"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                <div style={{
+                  position: 'absolute',
+                  bottom: '0',
+                  left: '0',
+                  right: '0',
+                  padding: '6px 8px',
+                  background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
+                  color: '#fff',
+                  fontSize: '11px',
+                  display: 'flex',
+                  justifyContent: 'space-between'
+                }}>
+                  <span>{item.author_name || 'Gość'}</span>
+                  <span>❤️ {item.likes}</span>
+                </div>
               </div>
             ))}
-        </div>
-
-        {selectedMedia && (
-          <div
-            className="reel-modal-overlay"
-            onTouchStart={(e) => {
-              (e.currentTarget as HTMLElement & { touchStartX?: number }).touchStartX = e.touches[0].clientX;
-            }}
-            onTouchEnd={(e) => {
-              const target = e.currentTarget as HTMLElement & { touchStartX?: number };
-              const startX = target.touchStartX;
-              if (startX === undefined) return;
-
-              const diffX = startX - e.changedTouches[0].clientX;
-              if (diffX > 50) nextSlide();
-              else if (diffX < -50) prevSlide();
-            }}
-          >
-            <button className="reel-close-btn" onClick={closeModal}>✕</button>
-
-            <div className="reel-media-wrapper reel-media-animated" key={selectedMedia.id} onClick={() => setIsCommentsOpen(false)}>
-              {selectedMedia.type === 'image' ? (
-                <Image
-                  src={selectedMedia.src}
-                  alt={selectedMedia.alt}
-                  fill
-                  unoptimized
-                  className="reel-media"
-                />
-              ) : (
-                <video
-                  ref={videoRef}
-                  src={selectedMedia.src}
-                  controls
-                  autoPlay={isSlideshowActive}
-                  playsInline
-                  preload="metadata"
-                  className="reel-media"
-                  onEnded={() => {
-                    if (isSlideshowActive) {
-                      nextSlide();
-                    }
-                  }}
-                />
-              )}
-            </div>
-
-            <div className="reel-author-info">
-              <div className="author-avatar">{(selectedMedia.authorName || 'G')[0].toUpperCase()}</div>
-              <span className="author-name">{selectedMedia.authorName || 'Gość'}</span>
-            </div>
-
-            <div className="reel-actions">
-              <button
-                className="action-btn slideshow-toggle-square-btn"
-                onClick={() => setIsSlideshowActive((prev) => !prev)}
-                title={isSlideshowActive ? 'Zatrzymaj pokaz' : 'Rozpocznij pokaz'}
-              >
-                <span className="icon">{isSlideshowActive ? '⏸' : '▶'}</span>
-              </button>
-
-              <button
-                className={`action-btn ${selectedMedia.isLiked ? 'liked' : ''}`}
-                onClick={() => handleToggleLike(selectedMedia.id)}
-              >
-                <span className="icon">⭐</span>
-                <span className="count">{selectedMedia.likes}</span>
-              </button>
-
-              <button className="action-btn" onClick={() => setIsCommentsOpen((prev) => !prev)}>
-                <span className="icon">💬</span>
-                <span className="count">{selectedMedia.comments.length}</span>
-              </button>
-            </div>
-
-            <div className={`bottom-comments-sheet ${isCommentsOpen ? 'open' : ''}`}>
-              <div className="sheet-header">
-                <span>Komentarze ({selectedMedia.comments.length})</span>
-                <button className="sheet-close" onClick={() => setIsCommentsOpen(false)}>✕</button>
-              </div>
-
-              <div className="sheet-comments-list">
-                {selectedMedia.comments.length === 0 ? (
-                  <p className="no-comments">Brak komentarzy. Napisz coś!</p>
-                ) : (
-                  selectedMedia.comments.map((comment) => (
-                    <div key={comment.id} className="sheet-comment-item">
-                      <p className="comment-text">{comment.text}</p>
-                      <span className="comment-time">{comment.createdAt}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <form onSubmit={handleAddComment} className="sheet-form">
-                <input
-                  type="text"
-                  placeholder="Dodaj komentarz..."
-                  value={newCommentText}
-                  onChange={(e) => setNewCommentText(e.target.value)}
-                />
-                <button type="submit">Wyślij</button>
-              </form>
-            </div>
           </div>
         )}
       </div>
 
-      <VersionBadge />
+      {/* Modal / Pełny ekran podglądu */}
+      {selectedMedia && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.9)',
+          zIndex: 1000,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }}>
+          <button
+            onClick={() => { setSelectedMedia(null); setIsSlideshowActive(false); }}
+            style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}
+          >
+            <X size={28} />
+          </button>
 
-      <div className="scroll-to-top-wrapper">
-        <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="scroll-to-top-btn">
-          ↑ Powrót na górę
-        </button>
-      </div>
+          {/* Kontrolki pokazu slajdów */}
+          <div style={{ position: 'absolute', top: '20px', left: '20px', display: 'flex', gap: '10px' }}>
+            <button
+              onClick={() => setIsSlideshowActive(!isSlideshowActive)}
+              style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              {isSlideshowActive ? <Pause size={16} /> : <Play size={16} />}
+              {isSlideshowActive ? 'Zatrzymaj pokaz' : 'Włącz pokaz'}
+            </button>
+          </div>
+
+          <div style={{ maxWidth: '500px', width: '100%', maxHeight: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+            {selectedMedia.type === 'image' ? (
+              <img
+                src={selectedMedia.src}
+                alt="Fullscreen"
+                style={{ maxWidth: '100%', maxHeight: '50vh', objectFit: 'contain', borderRadius: '8px' }}
+              />
+            ) : (
+              <video
+                ref={videoRef}
+                src={selectedMedia.src}
+                controls
+                autoPlay={isSlideshowActive}
+                playsInline
+                preload="metadata"
+                style={{ maxWidth: '100%', maxHeight: '50vh', objectFit: 'contain', borderRadius: '8px' }}
+                onEnded={() => {
+                  if (isSlideshowActive) {
+                    nextSlide();
+                  }
+                }}
+              />
+            )}
+
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', color: '#fff' }}>
+              <span>Autor: <strong>{selectedMedia.author_name || 'Gość'}</strong></span>
+              <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                <button
+                  onClick={(e) => handleLike(selectedMedia, e)}
+                  style={{ background: 'none', border: 'none', color: '#ff4d4f', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '16px' }}
+                >
+                  <Heart size={20} fill="#ff4d4f" /> {selectedMedia.likes}
+                </button>
+                <button
+                  onClick={() => handleDelete(selectedMedia.id)}
+                  style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}
+                  title="Usuń"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Sekcja komentarzy */}
+            <div style={{ width: '100%', background: '#1e1e1e', borderRadius: '8px', padding: '12px', marginTop: '10px', maxHeight: '150px', overflowY: 'auto' }}>
+              {selectedMedia.comments.length === 0 ? (
+                <p style={{ color: '#888', fontSize: '13px', textAlign: 'center', margin: 0 }}>Brak komentarzy.</p>
+              ) : (
+                selectedMedia.comments.map((c) => (
+                  <div key={c.id} style={{ marginBottom: '8px', fontSize: '13px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#38bdf8' }}>
+                      <strong>{c.name || 'Gość'}</strong>
+                      <span style={{ fontSize: '10px', color: '#888' }}>{c.createdAt}</span>
+                    </div>
+                    <p style={{ color: '#fff', margin: '2px 0 0 0' }}>{c.text}</p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <form onSubmit={handleAddComment} style={{ width: '100%', display: 'flex', gap: '8px', marginTop: '8px' }}>
+              <input
+                type="text"
+                placeholder="Napisz komentarz jako..."
+                value={newCommentText}
+                onChange={(e) => setNewCommentText(e.target.value)}
+                style={{ flex: 1, padding: '8px 12px', borderRadius: '6px', border: 'none', fontSize: '13px' }}
+              />
+              <button type="submit" style={{ background: '#0070f3', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                Wyślij
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <VersionBadge />
 
       <nav>
         <ul>
