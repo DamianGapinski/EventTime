@@ -108,7 +108,10 @@ export default function GaleriaPage() {
 
   const fetchMedia = async () => {
     try {
-      const res = await fetch('/api/media', { cache: 'no-store' });
+      const res = await fetch('/api/media', { 
+  method: 'GET', // ZAWSZE GET!
+  cache: 'no-store' 
+});
       const data = await res.json();
 
       if (data.success && Array.isArray(data.data)) {
@@ -180,14 +183,11 @@ export default function GaleriaPage() {
       // 1. Pobranie presigned URL z API (używamy 'filename' i 'contentType')
       setUploadStatusText(`Przygotowanie pliku ${currentFileIndex}/${totalFiles}...`);
       
-      const res = await fetch('/api/upload-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          filename: file.name, 
-          contentType: file.type 
-        }),
-      });
+      const res = await fetch('/api/upload', {
+  method: 'POST', // ZAWSZE POST!
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ filename: file.name, contentType: file.type }),
+});
 
       const uploadData = await res.json();
       if (!uploadData.success || !uploadData.uploadUrl) {
