@@ -805,71 +805,70 @@ nav ul li{
   justify-content: center;
 }
 
-/* Style dla modalu tożsamości */
-.modalOverlay {
+.name-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.8);
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.85);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: 99999;
 }
 
-.modalContent {
-  background-color: #111;
+.name-modal-content {
+  background-color: #ffffff;
   padding: 30px;
-  border-radius: 12px;
-  max-width: 400px;
+  border-radius: 16px;
+  max-width: 380px;
   width: 90%;
-  color: #fff;
   text-align: center;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  color: #333333;
 }
 
-.modalContent h2 {
+.name-modal-content h2 {
   margin-bottom: 10px;
-}
-
-.modalContent p {
-  margin: 15px 0;
-  font-size: 14px;
-  color: #ccc;
-}
-
-.modalInput {
-  width: 100%;
-  padding: 10px;
-  border-radius: 6px;
-  border: 1px solid #444;
-  background-color: #222;
-  color: #fff;
-  font-size: 16px;
-  margin-bottom: 15px;
-  box-sizing: border-box;
-  outline: none;
-}
-
-.modalInput:focus {
-  border-color: #ff4b5c;
-}
-
-.modalButton {
-  width: 100%;
-  padding: 10px;
-  border-radius: 6px;
-  border: none;
-  background-color: #ff4b5c;
-  color: #fff;
-  font-size: 16px;
+  font-size: 22px;
   font-weight: bold;
-  cursor: pointer;
-  transition: background-color 0.2s;
 }
 
-.modalButton:hover {
-  background-color: #e03e4d;
+.name-modal-content p {
+  margin-bottom: 20px;
+  font-size: 14px;
+  color: #666666;
+}
+
+.name-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.name-modal-input {
+  padding: 12px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.name-modal-btn {
+  padding: 12px;
+  font-size: 16px;
+  background-color: #0070f3;
+  color: #ffffff;
+  border: none;
+  borderRadius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  width: 100%;
+}
+
+.name-modal-btn:hover {
+  background-color: #0051a2;
 }

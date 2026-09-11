@@ -335,24 +335,27 @@ export default function GaleriaPage() {
     <>
       {/* Modal pobierający imię (wyskakujący) */}
       {isNameModalOpen && (
-        <div className="name-modal-overlay">
-          <div className="name-modal-content">
-            <h2>Jak masz na imię?</h2>
-            <p>Podaj swoje imię, aby inni wiedzieli, kto dodał wspomnienie.</p>
-            <form onSubmit={handleSaveName}>
-              <input
-                type="text"
-                placeholder="Wpisz swoje imię..."
-                value={tempNameInput}
-                onChange={(e) => setTempNameInput(e.target.value)}
-                required
-                autoFocus
-              />
-              <button type="submit">Zapisz i wejdź</button>
-            </form>
-          </div>
-        </div>
-      )}
+  <div className="name-modal-overlay">
+    <div className="name-modal-content">
+      <h2>Jak masz na imię?</h2>
+      <p>Podaj swoje imię, aby inni wiedzieli, kto dodał wspomnienie lub zostawił komentarz.</p>
+      <form onSubmit={handleSaveName} className="name-modal-form">
+        <input
+          type="text"
+          placeholder="np. Jan Kowalski"
+          value={tempNameInput}
+          onChange={(e) => setTempNameInput(e.target.value)}
+          required
+          autoFocus
+          className="name-modal-input"
+        />
+        <button type="submit" className="name-modal-btn">
+          Zapisz i wejdź
+        </button>
+      </form>
+    </div>
+  </div>
+)}
 
       <div className="gallery-container">
         <div className="gallery-header">
