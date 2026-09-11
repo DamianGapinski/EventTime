@@ -72,7 +72,6 @@ const generateVideoThumbnail = (file: File): Promise<string> => {
   });
 };
 
-// Komponent wyświetlający wersję aplikacji z Vercel
 const VersionBadge = () => {
   const commitHash = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA 
     ? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA.substring(0, 7) 
@@ -97,27 +96,8 @@ const VersionBadge = () => {
   );
 };
 
-const initialMedia: MediaItem[] = [
-  {
-    id: 1,
-    type: 'image',
-    src: '/images/background.jpg',
-    thumbSrc: '/images/background.jpg',
-    alt: 'Pierwszy taniec',
-    authorName: 'Damian',
-    likes: 12,
-    comments: [
-      {
-        id: '1',
-        text: 'Super ujęcie!',
-        createdAt: '12:30',
-      },
-    ],
-  },
-];
-
 export default function GaleriaPage() {
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>(initialMedia);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
   const [isCommentsOpen, setIsCommentsOpen] = useState(false);
   const [newCommentText, setNewCommentText] = useState('');
@@ -139,7 +119,7 @@ export default function GaleriaPage() {
       const res = await fetch('/api/media', { cache: 'no-store' });
       const data = await res.json();
 
-      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+      if (data.success && Array.isArray(data.data)) {
         const fetchedItems: MediaItem[] = data.data.map(
           (item: ApiMediaItem, idx: number) => ({
             id: item.id || `fetched-${idx}-${Date.now()}`,
@@ -193,20 +173,13 @@ export default function GaleriaPage() {
     return () => clearInterval(interval);
   }, [selectedMedia, isSlideshowActive]);
 
-  // ==========================================
-  // BEZPOŚREDNI UPLOAD PLIKU DO S3 (BEZ FFmpeg)
-  // ==========================================
   const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    console.log("=== ROZPOCZĘTO UPLOAD ===")
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     setIsUploading(true);
-    const processedItems: MediaItem[] = [];
     const fileArray = Array.from(files);
     const totalFiles = fileArray.length;
-
-    console.log(`[FRONTEND] Wybrano plików do wysyłki: ${totalFiles}`);
 
     try {
       for (let i = 0; i < fileArray.length; i++) {
@@ -215,15 +188,8 @@ export default function GaleriaPage() {
         const isVideo = file.type.startsWith('video/');
         const isImage = file.type.startsWith('image/');
 
-        console.log(`[FRONTEND] Plik ${currentFileIndex}:`, {
-          name: file.name,
-          sizeInBytes: file.size, // Sprawdź, czy rozmiar zgadza się z tym z dysku
-          type: file.type,
-        });
-
         if (!isImage && !isVideo) continue;
 
-        // Krok 1: Pobranie Presigned URL z backendu
         setUploadStatusText(`Przygotowywanie pliku ${currentFileIndex}/${totalFiles}...`);
         const uploadRequest = await fetch('/api/upload', {
           method: 'POST',
@@ -235,38 +201,26 @@ export default function GaleriaPage() {
         });
 
         const uploadData = await uploadRequest.json();
-        console.log(`[FRONTEND] Odpowiedź z /api/upload:`, uploadData);
-
         if (!uploadData.success || !uploadData.uploadUrl) {
           throw new Error('Nie udało się uzyskać podpisanego URL do S3');
         }
 
-        // Krok 2: Konwersja na ArrayBuffer i wysyłka bezpośrednio do S3
         setUploadStatusText(`Wysyłanie do S3 (${currentFileIndex}/${totalFiles})...`);
-        
-        console.log(`[FRONTEND] Konwertuję plik na ArrayBuffer...`);
         const arrayBuffer = await file.arrayBuffer();
-const uploadRes = await fetch(uploadData.uploadUrl, {
-  method: 'PUT',
-  headers: {
-    'Content-Type': file.type || 'video/mp4',
-  },
-  body: arrayBuffer,
-});
-
-        console.log(`[FRONTEND] Status odpowiedzi z S3 (PUT):`, uploadRes.status, uploadRes.statusText);
+        const uploadRes = await fetch(uploadData.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type || 'video/mp4' },
+          body: arrayBuffer,
+        });
 
         if (!uploadRes.ok) {
-          const errorText = await uploadRes.text();
-          console.error(`[FRONTEND] Szczegóły błędu S3:`, errorText);
           throw new Error(`Upload do S3 nie powiódł się: ${uploadRes.status}`);
         }
 
         const uploadedUrl = uploadData.publicUrl;
-        console.log(`[FRONTEND] Plik wgrany pomyślnie. Publiczny URL: ${uploadedUrl}`);
 
-        // Krok 3: Zapis w bazie danych
-        await fetch('/api/media', {
+        // Zapis w bazie Supabase i pobranie finalnego obiektu
+        const dbRes = await fetch('/api/media', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -276,41 +230,39 @@ const uploadRes = await fetch(uploadData.uploadUrl, {
           }),
         });
 
-        // Krok 4: Generowanie miniatury do podglądu
+        const dbData = await dbRes.json();
+
+        let thumbUrl = uploadedUrl;
         if (isImage) {
           try {
-            const { thumb, full } = await processUploadedImage(file);
-            processedItems.push({
-              id: Date.now() + Math.random(),
-              type: 'image',
-              src: uploadedUrl || full,
-              thumbSrc: uploadedUrl || thumb,
-              alt: file.name,
-              authorName: 'Gość',
-              likes: 0,
-              comments: [],
-            });
+            const { thumb } = await processUploadedImage(file);
+            thumbUrl = thumb;
           } catch (imageError) {
             console.error('Błąd miniatury zdjęcia:', imageError);
           }
         } else {
-          const thumbUrl = await generateVideoThumbnail(file);
-          processedItems.push({
-            id: Date.now() + Math.random(),
-            type: 'video',
-            src: uploadedUrl,
+          thumbUrl = await generateVideoThumbnail(file);
+        }
+
+        if (dbData.success && dbData.data) {
+          const newItem: MediaItem = {
+            id: dbData.data.id,
+            type: dbData.data.resourceType === 'video' ? 'video' : 'image',
+            src: dbData.data.url,
             thumbSrc: thumbUrl,
             alt: file.name,
-            authorName: 'Gość',
-            likes: 0,
-            comments: [],
-          });
+            authorName: dbData.data.authorName || 'Gość',
+            likes: dbData.data.likes || 0,
+            comments: dbData.data.comments || [],
+          };
+          
+          // Natychmiastowe dodanie pliku do stanu, aby pojawił się na stronie bez odświeżania
+          setMediaItems((prev) => [newItem, ...prev]);
         }
       }
     } catch (fileError) {
       console.error('[FRONTEND] Błąd podczas przesyłania plików:', fileError);
     } finally {
-      setMediaItems((prev) => [...processedItems, ...prev]);
       setIsUploading(false);
       setUploadStatusText('');
       e.target.value = '';
