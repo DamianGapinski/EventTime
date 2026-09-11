@@ -180,7 +180,7 @@ export default function GaleriaPage() {
     return () => clearInterval(interval);
   }, [selectedMedia, isSlideshowActive]);
 
-  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+ const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -226,19 +226,8 @@ export default function GaleriaPage() {
 
         const uploadedUrl = uploadData.publicUrl;
 
-        // Zapis w bazie Supabase i pobranie finalnego obiektu
-        const dbRes = await fetch('/api/media', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: uploadedUrl,
-            type: isVideo ? 'video' : 'image',
-            authorName: 'Gość',
-          }),
-        });
-
-        const dbData = await dbRes.json();
-
+        // 1. Najpierw generujemy miniaturę (zanim zapiszemy w bazie!)
+        setUploadStatusText(`Generowanie miniatury (${currentFileIndex}/${totalFiles})...`);
         let thumbUrl = uploadedUrl;
         if (isImage) {
           try {
@@ -248,22 +237,40 @@ export default function GaleriaPage() {
             console.error('Błąd miniatury zdjęcia:', imageError);
           }
         } else {
-          thumbUrl = await generateVideoThumbnail(file);
+          try {
+            thumbUrl = await generateVideoThumbnail(file);
+          } catch (videoErr) {
+            console.error('Błąd miniatury wideo:', videoErr);
+          }
         }
+
+        // 2. Dopiero teraz wysyłamy komplet danych (wraz z thumbUrl) do bazy
+        setUploadStatusText(`Zapisywanie w bazie (${currentFileIndex}/${totalFiles})...`);
+        const dbRes = await fetch('/api/media', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: uploadedUrl,
+            thumbUrl: thumbUrl,
+            type: isVideo ? 'video' : 'image',
+            authorName: 'Gość',
+          }),
+        });
+
+        const dbData = await dbRes.json();
 
         if (dbData.success && dbData.data) {
           const newItem: MediaItem = {
             id: dbData.data.id,
             type: dbData.data.resourceType === 'video' ? 'video' : 'image',
             src: dbData.data.url,
-            thumbSrc: thumbUrl,
+            thumbSrc: dbData.data.thumbSrc || thumbUrl,
             alt: file.name,
             authorName: dbData.data.authorName || 'Gość',
             likes: dbData.data.likes || 0,
             comments: dbData.data.comments || [],
           };
           
-          // Natychmiastowe dodanie pliku do stanu, aby pojawił się na stronie bez odświeżania
           setMediaItems((prev) => [newItem, ...prev]);
         }
       }
