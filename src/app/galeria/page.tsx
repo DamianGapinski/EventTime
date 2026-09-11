@@ -180,6 +180,16 @@ export default function GaleriaPage() {
         const currentFileIndex = i + 1;
         const isVideo = file.type.startsWith('video/');
 
+        let thumbBase64 = '';
+        if (isVideo) {
+          setUploadStatusText(`Generowanie miniaturki ${currentFileIndex}/${totalFiles}...`);
+          try {
+            thumbBase64 = await generateVideoThumbnail(file);
+          } catch (thumbErr) {
+            console.warn('Nie udało się wygenerować miniaturki wideo:', thumbErr);
+          }
+        }
+
         // 1. Pobranie presigned URL z API
         setUploadStatusText(`Przygotowanie pliku ${currentFileIndex}/${totalFiles}...`);
         
@@ -194,7 +204,7 @@ export default function GaleriaPage() {
           throw new Error('Nie udało się pobrać URL do przesyłania.');
         }
 
-        // 2. Bezpośredni upload surowego pliku do S3
+        // 2. Bezpośredni upload pliku do S3
         setUploadStatusText(`Wysyłanie pliku ${currentFileIndex}/${totalFiles} do S3...`);
         const uploadRes = await fetch(uploadData.uploadUrl, {
           method: 'PUT',
@@ -206,7 +216,7 @@ export default function GaleriaPage() {
           throw new Error('Błąd podczas wysyłania pliku na S3.');
         }
 
-        // 3. Zapis do bazy danych Supabase (tylko kolumny, które faktycznie istnieją)
+        // 3. Zapis do bazy danych Supabase
         setUploadStatusText(`Zapisywanie w bazie ${currentFileIndex}/${totalFiles}...`);
         const { error: dbError } = await supabase.from('media').insert([
           {
@@ -219,11 +229,23 @@ export default function GaleriaPage() {
           console.error('Błąd zapisu do Supabase:', dbError);
         }
 
+        // Dodaj nowo wrzucony element od razu do stanu z wygenerowaną miniaturką
+        const newItem: MediaItem = {
+          id: `local-${Date.now()}-${i}`,
+          type: isVideo ? 'video' : 'image',
+          src: uploadData.publicUrl,
+          thumbSrc: isVideo ? thumbBase64 : uploadData.publicUrl,
+          alt: file.name,
+          likes: 0,
+          comments: [],
+        };
+        setMediaItems((prev) => [newItem, ...prev]);
+
         setUploadProgress(Math.round((currentFileIndex / totalFiles) * 100));
       }
 
       setUploadStatusText('Wszystkie pliki zostały pomyślnie przesłane!');
-      fetchMedia(); // Odśwież galerię od razu po zakończeniu
+      fetchMedia(); // Odśwież z serwera
     } catch (error) {
       console.error('Błąd podczas przesyłania plików:', error);
       setUploadStatusText('Wystąpił błąd podczas przesyłania.');
