@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, ChangeEvent } from 'react';
+import { useState, useEffect, ChangeEvent, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -30,28 +30,37 @@ const generateVideoThumbnail = (file: File): Promise<string> => {
     const video = document.createElement('video');
     const videoUrl = URL.createObjectURL(file);
 
-    video.preload = 'metadata';
+    video.preload = 'auto';
     video.src = videoUrl;
     video.muted = true;
     video.playsInline = true;
+    video.load();
 
+    // iOS Safari potrzebuje opóźnienia, żeby poprawnie zrenderować klatkę na canvasie
     video.onloadeddata = () => {
-      video.currentTime = 1;
+      setTimeout(() => {
+        video.currentTime = 0.5; // Pobieramy klatkę z 0.5 sekundy
+      }, 200);
     };
 
     video.onseeked = () => {
       const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth || 320;
+      canvas.height = video.videoHeight || 240;
 
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       }
 
-      const thumbUrl = canvas.toDataURL('image/jpeg', 0.8);
-      URL.revokeObjectURL(videoUrl);
-      resolve(thumbUrl);
+      try {
+        const thumbUrl = canvas.toDataURL('image/jpeg', 0.7);
+        URL.revokeObjectURL(videoUrl);
+        resolve(thumbUrl);
+      } catch (err) {
+        URL.revokeObjectURL(videoUrl);
+        reject(err);
+      }
     };
 
     video.onerror = (err) => {
@@ -83,6 +92,7 @@ export default function GaleriaPage() {
   const [errorImages, setErrorImages] = useState<Record<string, boolean>>({});
   const [uploadStatusText, setUploadStatusText] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const pathname = usePathname();
 
@@ -146,11 +156,26 @@ export default function GaleriaPage() {
   };
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let timeout: NodeJS.Timeout;
+
     if (selectedMedia && isSlideshowActive) {
-      interval = setInterval(nextSlide, 4000);
+      // Jeśli aktualny element to zdjęcie, przełącz po 4 sekundach
+      if (selectedMedia.type === 'image') {
+        timeout = setTimeout(() => {
+          nextSlide();
+        }, 4000);
+      } else {
+        // Jeśli to wideo, upewniamy się, że jest odtwarzane (jeśli użytkownik dopiero włączył pokaz)
+        if (videoRef.current) {
+          videoRef.current.play().catch(() => {
+            // W razie zablokowania autoplaya przez przeglądarkę przechodzimy dalej po 4s
+            timeout = setTimeout(() => nextSlide(), 4000);
+          });
+        }
+      }
     }
-    return () => clearInterval(interval);
+
+    return () => clearTimeout(timeout);
   }, [selectedMedia, isSlideshowActive]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -401,11 +426,18 @@ export default function GaleriaPage() {
                 />
               ) : (
                 <video
+                  ref={videoRef}
                   src={selectedMedia.src}
                   controls
+                  autoPlay={isSlideshowActive}
                   playsInline
                   preload="metadata"
                   className="reel-media"
+                  onEnded={() => {
+                    if (isSlideshowActive) {
+                      nextSlide();
+                    }
+                  }}
                 />
               )}
             </div>
