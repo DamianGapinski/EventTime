@@ -119,6 +119,7 @@ export default function GaleriaPage() {
       if (data) {
         setMediaItems(data.map((item: any) => ({
           ...item,
+          thumbnail: item.thumb_url, // <-- Mapujemy thumb_url z bazy na thumbnail w kodzie
           comments: Array.isArray(item.comments) ? item.comments : [],
           author_name: item.author_name || 'Gość'
         })));
@@ -200,7 +201,7 @@ export default function GaleriaPage() {
         const newItem = {
           type: isVideo ? 'video' : 'image',
           src: mediaUrl,
-          thumbnail: isVideo ? thumbnailUrl : mediaUrl,
+          thumb_url: isVideo ? thumbnailUrl : mediaUrl, // <-- Zmienione z thumbnail na thumb_url
           likes: 0,
           comments: [],
           author_name: userName,
