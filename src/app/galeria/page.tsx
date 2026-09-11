@@ -23,17 +23,6 @@ interface MediaItem {
   likes: number;
   isLiked?: boolean;
   comments: Comment[];
-  url?: string;
-}
-
-interface ApiMediaItem {
-  id?: string | number;
-  resourceType?: string;
-  type?: string;
-  url: string;
-  authorName?: string;
-  likes?: number;
-  comments?: Comment[];
 }
 
 const generateVideoThumbnail = (file: File): Promise<string> => {
@@ -102,10 +91,11 @@ export default function GaleriaPage() {
   const [isCommentsOpen, setIsCommentsOpen] = useState(false);
   const [newCommentText, setNewCommentText] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const pathname = usePathname();
   const [isSlideshowActive, setIsSlideshowActive] = useState(false);
   const [errorImages, setErrorImages] = useState<Record<string, boolean>>({});
   const [uploadStatusText, setUploadStatusText] = useState('');
+  
+  const pathname = usePathname();
 
   const navLinks = [
     { href: '/', icon: Home, label: 'Home' },
@@ -120,18 +110,16 @@ export default function GaleriaPage() {
       const data = await res.json();
 
       if (data.success && Array.isArray(data.data)) {
-        const fetchedItems: MediaItem[] = data.data.map(
-          (item: ApiMediaItem, idx: number) => ({
-            id: item.id || `fetched-${idx}-${Date.now()}`,
-            type: item.resourceType === 'video' || item.type === 'video' ? 'video' : 'image',
-            src: item.url,
-            thumbSrc: item.url,
-            alt: 'Zdjęcie z wydarzenia',
-            authorName: item.authorName || 'Gość',
-            likes: item.likes || 0,
-            comments: item.comments || [],
-          })
-        );
+        const fetchedItems: MediaItem[] = data.data.map((item: any, idx: number) => ({
+          id: item.id || `fetched-${idx}-${Date.now()}`,
+          type: item.type === 'video' ? 'video' : 'image',
+          src: item.src,
+          thumbSrc: item.thumbSrc,
+          alt: 'Zdjęcie z wydarzenia',
+          authorName: item.authorName || 'Gość',
+          likes: item.likes || 0,
+          comments: item.comments || [],
+        }));
         setMediaItems(fetchedItems);
       }
     } catch (err) {
@@ -139,14 +127,9 @@ export default function GaleriaPage() {
     }
   };
 
- useEffect(() => {
-    fetchMedia(); // Pobierz od razu po załadowaniu
-
-    // Pobieraj co 5 sekund, żeby widzieć zdjęcia dodane przez inne osoby
-    const interval = setInterval(() => {
-      fetchMedia();
-    }, 5000);
-
+  useEffect(() => {
+    fetchMedia();
+    const interval = setInterval(fetchMedia, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -173,14 +156,12 @@ export default function GaleriaPage() {
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (selectedMedia && isSlideshowActive) {
-      interval = setInterval(() => {
-        nextSlide();
-      }, 4000);
+      interval = setInterval(nextSlide, 4000);
     }
     return () => clearInterval(interval);
   }, [selectedMedia, isSlideshowActive]);
 
- const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -197,46 +178,21 @@ export default function GaleriaPage() {
 
         if (!isImage && !isVideo) continue;
 
-        setUploadStatusText(`Przygotowywanie pliku ${currentFileIndex}/${totalFiles}...`);
-        const uploadRequest = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            filename: file.name,
-            contentType: file.type || (isVideo ? 'video/mp4' : 'application/octet-stream'),
-          }),
-        });
+        setUploadStatusText(`Optymalizacja pliku ${currentFileIndex}/${totalFiles}...`);
+        
+        let fileToSend: Blob = file;
+        let thumbUrl = '';
+        let fileName = file.name;
+        let contentType = file.type;
 
-        const uploadData = await uploadRequest.json();
-        if (!uploadData.success || !uploadData.uploadUrl) {
-          throw new Error('Nie udało się uzyskać podpisanego URL do S3');
-        }
-
-        setUploadStatusText(`Wysyłanie do S3 (${currentFileIndex}/${totalFiles})...`);
-        const arrayBuffer = await file.arrayBuffer();
-        const uploadRes = await fetch(uploadData.uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': file.type || 'video/mp4' },
-          body: arrayBuffer,
-        });
-
-        if (!uploadRes.ok) {
-          throw new Error(`Upload do S3 nie powiódł się: ${uploadRes.status}`);
-        }
-
-        const uploadedUrl = uploadData.publicUrl;
-
-        // 1. Najpierw generujemy miniaturę (zanim zapiszemy w bazie!)
-        setUploadStatusText(`Generowanie miniatury (${currentFileIndex}/${totalFiles})...`);
-        let thumbUrl = uploadedUrl;
         if (isImage) {
-          try {
-            const { thumb } = await processUploadedImage(file);
-            thumbUrl = thumb;
-          } catch (imageError) {
-            console.error('Błąd miniatury zdjęcia:', imageError);
-          }
-        } else {
+          const processed = await processUploadedImage(file);
+          // Dopasuj te właściwości do tego, co faktycznie zwraca Twój plik /lib/imageOptimizer.ts
+          fileToSend = (processed as any).blob || (processed as any).file || processed;
+          thumbUrl = (processed as any).thumb || (processed as any).url || '';
+          fileName = `${file.name.substring(0, file.name.lastIndexOf('.')) || file.name}.webp`;
+          contentType = 'image/webp';
+        }else {
           try {
             thumbUrl = await generateVideoThumbnail(file);
           } catch (videoErr) {
@@ -244,38 +200,53 @@ export default function GaleriaPage() {
           }
         }
 
-        // 2. Dopiero teraz wysyłamy komplet danych (wraz z thumbUrl) do bazy
-        setUploadStatusText(`Zapisywanie w bazie (${currentFileIndex}/${totalFiles})...`);
+        setUploadStatusText(`Wysyłanie (${currentFileIndex}/${totalFiles})...`);
+        const uploadRequest = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: fileName, contentType }),
+        });
+
+        const uploadData = await uploadRequest.json();
+        if (!uploadData.success || !uploadData.uploadUrl) {
+          throw new Error('Błąd pobierania URL dla S3');
+        }
+
+        await fetch(uploadData.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': contentType },
+          body: fileToSend,
+        });
+
+        setUploadStatusText(`Zapisywanie (${currentFileIndex}/${totalFiles})...`);
         const dbRes = await fetch('/api/media', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            url: uploadedUrl,
-            thumbUrl: thumbUrl,
+            url: uploadData.publicUrl,
+            thumbUrl: thumbUrl || uploadData.publicUrl,
             type: isVideo ? 'video' : 'image',
             authorName: 'Gość',
           }),
         });
 
         const dbData = await dbRes.json();
-
         if (dbData.success && dbData.data) {
           const newItem: MediaItem = {
             id: dbData.data.id,
-            type: dbData.data.resourceType === 'video' ? 'video' : 'image',
-            src: dbData.data.url,
-            thumbSrc: dbData.data.thumbSrc || thumbUrl,
-            alt: file.name,
-            authorName: dbData.data.authorName || 'Gość',
-            likes: dbData.data.likes || 0,
-            comments: dbData.data.comments || [],
+            type: dbData.data.type,
+            src: dbData.data.src,
+            thumbSrc: dbData.data.thumbSrc,
+            alt: fileName,
+            authorName: dbData.data.authorName,
+            likes: dbData.data.likes,
+            comments: dbData.data.comments,
           };
-          
           setMediaItems((prev) => [newItem, ...prev]);
         }
       }
-    } catch (fileError) {
-      console.error('[FRONTEND] Błąd podczas przesyłania plików:', fileError);
+    } catch (err) {
+      console.error('Błąd wgrywania:', err);
     } finally {
       setIsUploading(false);
       setUploadStatusText('');
@@ -283,24 +254,36 @@ export default function GaleriaPage() {
     }
   };
 
-  const handleToggleLike = (id: string | number) => {
+  const handleToggleLike = async (id: string | number) => {
+    const targetItem = mediaItems.find((item) => item.id === id);
+    if (!targetItem) return;
+
+    const newIsLiked = !targetItem.isLiked;
+    const newLikes = newIsLiked ? targetItem.likes + 1 : targetItem.likes - 1;
+
     setMediaItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
-          const isLiked = !item.isLiked;
-          const likes = isLiked ? item.likes + 1 : item.likes - 1;
-          const updated = { ...item, likes, isLiked };
-          if (selectedMedia?.id === id) {
-            setSelectedMedia(updated);
-          }
+          const updated = { ...item, likes: newLikes, isLiked: newIsLiked };
+          if (selectedMedia?.id === id) setSelectedMedia(updated);
           return updated;
         }
         return item;
       })
     );
+
+    try {
+      await fetch('/api/media', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, likes: newLikes }),
+      });
+    } catch (err) {
+      console.error('Błąd zapisu lajka:', err);
+    }
   };
 
-  const handleAddComment = (e: React.FormEvent) => {
+  const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCommentText.trim() || !selectedMedia) return;
 
@@ -310,13 +293,12 @@ export default function GaleriaPage() {
       createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
+    const updatedComments = [...selectedMedia.comments, newComment];
+
     setMediaItems((prev) =>
       prev.map((item) => {
         if (item.id === selectedMedia.id) {
-          const updated = {
-            ...item,
-            comments: [...item.comments, newComment],
-          };
+          const updated = { ...item, comments: updatedComments };
           setSelectedMedia(updated);
           return updated;
         }
@@ -324,16 +306,22 @@ export default function GaleriaPage() {
       })
     );
     setNewCommentText('');
+
+    try {
+      await fetch('/api/media', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedMedia.id, comments: updatedComments }),
+      });
+    } catch (err) {
+      console.error('Błąd zapisu komentarza:', err);
+    }
   };
 
   const closeModal = () => {
     setSelectedMedia(null);
     setIsCommentsOpen(false);
     setIsSlideshowActive(false);
-  };
-
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -376,19 +364,15 @@ export default function GaleriaPage() {
                     height={600}
                     unoptimized
                     className="gallery-thumb"
-                    onError={() => {
-                      setErrorImages((prev) => ({ ...prev, [item.id]: true }));
-                    }}
+                    onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
                   />
                 ) : (
                   <div className="video-thumb-container">
                     <video
                       src={item.thumbSrc || item.src}
-                      preload="metadata"
+                      preload="none"
                       className="gallery-thumb object-cover"
-                      onError={() => {
-                        setErrorImages((prev) => ({ ...prev, [item.id]: true }));
-                      }}
+                      onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
                     />
                     <div className="play-overlay">
                       <span className="play-icon">▶</span>
@@ -403,63 +387,42 @@ export default function GaleriaPage() {
           <div
             className="reel-modal-overlay"
             onTouchStart={(e) => {
-              (e.currentTarget as HTMLElement & { touchStartX?: number }).touchStartX =
-                e.touches[0].clientX;
+              (e.currentTarget as HTMLElement & { touchStartX?: number }).touchStartX = e.touches[0].clientX;
             }}
             onTouchEnd={(e) => {
               const target = e.currentTarget as HTMLElement & { touchStartX?: number };
               const startX = target.touchStartX;
               if (startX === undefined) return;
 
-              const endX = e.changedTouches[0].clientX;
-              const diffX = startX - endX;
-              const threshold = 50;
-
-              if (diffX > threshold) {
-                nextSlide();
-              } else if (diffX < -threshold) {
-                prevSlide();
-              }
+              const diffX = startX - e.changedTouches[0].clientX;
+              if (diffX > 50) nextSlide();
+              else if (diffX < -50) prevSlide();
             }}
           >
-            <button className="reel-close-btn" onClick={closeModal}>
-              ✕
-            </button>
+            <button className="reel-close-btn" onClick={closeModal}>✕</button>
 
-            <div
-              className="reel-media-wrapper reel-media-animated"
-              key={selectedMedia.id}
-              onClick={() => setIsCommentsOpen(false)}
-            >
+            <div className="reel-media-wrapper reel-media-animated" key={selectedMedia.id} onClick={() => setIsCommentsOpen(false)}>
               {selectedMedia.type === 'image' ? (
                 <Image
-                  key={selectedMedia.src}
                   src={selectedMedia.src}
                   alt={selectedMedia.alt}
                   fill
                   unoptimized
                   className="reel-media"
                 />
-              ) : selectedMedia.src && selectedMedia.src.trim() !== '' ? (
+              ) : (
                 <video
-                  key={selectedMedia.src}
                   src={selectedMedia.src}
                   controls
                   playsInline
-                  preload="auto"
+                  preload="metadata"
                   className="reel-media"
                 />
-              ) : (
-                <div className="flex items-center justify-center h-full text-white">
-                  Brak pliku wideo do wyświetlenia
-                </div>
               )}
             </div>
 
             <div className="reel-author-info">
-              <div className="author-avatar">
-                {(selectedMedia.authorName || 'D')[0].toUpperCase()}
-              </div>
+              <div className="author-avatar">{(selectedMedia.authorName || 'D')[0].toUpperCase()}</div>
               <span className="author-name">{selectedMedia.authorName || 'Damian'}</span>
             </div>
 
@@ -467,7 +430,7 @@ export default function GaleriaPage() {
               <button
                 className="action-btn slideshow-toggle-square-btn"
                 onClick={() => setIsSlideshowActive((prev) => !prev)}
-                title={isSlideshowActive ? 'Zatrzymaj pokaz slajdów' : 'Rozpocznij pokaz slajdów'}
+                title={isSlideshowActive ? 'Zatrzymaj pokaz' : 'Rozpocznij pokaz'}
               >
                 <span className="icon">{isSlideshowActive ? '⏸' : '▶'}</span>
               </button>
@@ -480,10 +443,7 @@ export default function GaleriaPage() {
                 <span className="count">{selectedMedia.likes}</span>
               </button>
 
-              <button
-                className="action-btn"
-                onClick={() => setIsCommentsOpen((prev) => !prev)}
-              >
+              <button className="action-btn" onClick={() => setIsCommentsOpen((prev) => !prev)}>
                 <span className="icon">💬</span>
                 <span className="count">{selectedMedia.comments.length}</span>
               </button>
@@ -492,9 +452,7 @@ export default function GaleriaPage() {
             <div className={`bottom-comments-sheet ${isCommentsOpen ? 'open' : ''}`}>
               <div className="sheet-header">
                 <span>Komentarze ({selectedMedia.comments.length})</span>
-                <button className="sheet-close" onClick={() => setIsCommentsOpen(false)}>
-                  ✕
-                </button>
+                <button className="sheet-close" onClick={() => setIsCommentsOpen(false)}>✕</button>
               </div>
 
               <div className="sheet-comments-list">
@@ -527,7 +485,7 @@ export default function GaleriaPage() {
       <VersionBadge />
 
       <div className="scroll-to-top-wrapper">
-        <button onClick={scrollToTop} className="scroll-to-top-btn">
+        <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="scroll-to-top-btn">
           ↑ Powrót na górę
         </button>
       </div>
@@ -535,13 +493,12 @@ export default function GaleriaPage() {
       <nav>
         <ul>
           {navLinks.map((link) => {
-            const isActive = pathname === link.href;
             const Icon = link.icon;
             return (
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className={isActive ? 'nav-item active' : 'nav-item'}
+                  className={pathname === link.href ? 'nav-item active' : 'nav-item'}
                   title={link.label}
                   aria-label={link.label}
                 >

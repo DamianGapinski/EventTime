@@ -12,15 +12,13 @@ export async function GET() {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     const formattedData = (data || []).map((item) => ({
       id: item.id,
-      url: item.url,
+      type: item.type,
+      src: item.url,
       thumbSrc: item.thumb_url || item.url,
-      resourceType: item.type,
       authorName: item.author_name,
       likes: item.likes || 0,
       comments: item.comments || [],
@@ -30,10 +28,7 @@ export async function GET() {
     return NextResponse.json({ success: true, data: formattedData });
   } catch (error: any) {
     console.error('Błąd pobierania z Supabase:', error);
-    return NextResponse.json(
-      { success: false, error: 'Błąd pobierania danych', details: error?.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: error?.message }, { status: 500 });
   }
 }
 
@@ -56,17 +51,15 @@ export async function POST(request: Request) {
       .select()
       .single();
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     return NextResponse.json({ 
       success: true, 
       data: {
         id: data.id,
-        url: data.url,
+        type: data.type,
+        src: data.url,
         thumbSrc: data.thumb_url || data.url,
-        resourceType: data.type,
         authorName: data.author_name,
         likes: data.likes,
         comments: data.comments,
@@ -74,9 +67,32 @@ export async function POST(request: Request) {
     });
   } catch (error: any) {
     console.error('Błąd zapisu w Supabase:', error);
-    return NextResponse.json(
-      { success: false, error: 'Błąd zapisu pliku', details: error?.message || error },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: error?.message }, { status: 500 });
+  }
+}
+
+// Obsługa lajków i komentarzy
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, likes, comments } = body;
+
+    const updateData: any = {};
+    if (likes !== undefined) updateData.likes = likes;
+    if (comments !== undefined) updateData.comments = comments;
+
+    const { data, error } = await supabase
+      .from('media')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true, data });
+  } catch (error: any) {
+    console.error('Błąd aktualizacji w Supabase:', error);
+    return NextResponse.json({ success: false, error: error?.message }, { status: 500 });
   }
 }
