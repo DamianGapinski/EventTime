@@ -1,477 +1,1027 @@
 'use client';
 
-import { useState, useEffect, useRef, ChangeEvent } from 'react';
+
+
+import { useState, useEffect, ChangeEvent } from 'react';
+
+import Image from 'next/image';
+
+import { processUploadedImage } from '@/lib/imageOptimizer';
+
 import Link from 'next/link';
+
 import { usePathname } from 'next/navigation';
-import { Home, Image as GalleryIcon, Gamepad2, Mail, Heart, Trash2, X, Play, Pause, Plus } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+
+import { Home, Image as GalleryIcon, Gamepad2, Mail } from 'lucide-react';
+
+import { supabase } from '@/lib/supabase'; // lub ścieżka do Twojego pliku z klientem Supabase
+
 
 
 interface Comment {
+
   id: string;
-  name: string;
+
   text: string;
+
   createdAt: string;
+
 }
+
+
 
 interface MediaItem {
+
   id: string | number;
+
   type: 'image' | 'video';
+
   src: string;
-  thumb_url?: string;
+
+  thumbSrc?: string;
+
+  alt: string;
+
+  authorName?: string;
+
   likes: number;
+
+  isLiked?: boolean;
+
   comments: Comment[];
-  author_name?: string;
+
 }
 
-const VersionBadge = () => {
-  const commitHash = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA
-    ? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA.substring(0, 7)
-    : 'dev-local';
 
-  return <div className="version-badge">v: {commitHash}</div>;
-};
 
 const generateVideoThumbnail = (file: File): Promise<string> => {
+
   return new Promise((resolve, reject) => {
+
     const video = document.createElement('video');
+
     const videoUrl = URL.createObjectURL(file);
 
-    video.preload = 'auto';
+
+
+    video.preload = 'metadata';
+
     video.src = videoUrl;
+
     video.muted = true;
+
     video.playsInline = true;
-    video.load();
+
+
 
     video.onloadeddata = () => {
-      setTimeout(() => {
-        video.currentTime = 0.5;
-      }, 200);
+
+      video.currentTime = 1;
+
     };
+
+
 
     video.onseeked = () => {
+
       const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 320;
-      canvas.height = video.videoHeight || 240;
+
+      canvas.width = video.videoWidth;
+
+      canvas.height = video.videoHeight;
+
+
 
       const ctx = canvas.getContext('2d');
+
       if (ctx) {
+
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
       }
 
-      try {
-        const thumbUrl = canvas.toDataURL('image/jpeg', 0.7);
-        URL.revokeObjectURL(videoUrl);
-        resolve(thumbUrl);
-      } catch (err) {
-        URL.revokeObjectURL(videoUrl);
-        reject(err);
-      }
+
+
+      const thumbUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+      URL.revokeObjectURL(videoUrl);
+
+      resolve(thumbUrl);
+
     };
+
+
 
     video.onerror = (err) => {
+
       URL.revokeObjectURL(videoUrl);
+
       reject(err);
+
     };
+
   });
+
 };
 
+
+
+const VersionBadge = () => {
+
+  const commitHash = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA
+
+    ? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA.substring(0, 7)
+
+    : 'dev-local';
+
+
+
+  return (
+
+    <div style={{
+
+      position: 'fixed',
+
+      bottom: '80px',
+
+      right: '12px',
+
+      background: 'rgba(0, 0, 0, 0.75)',
+
+      color: '#fff',
+
+      padding: '4px 8px',
+
+      fontSize: '11px',
+
+      borderRadius: '4px',
+
+      zIndex: 9999,
+
+      pointerEvents: 'none',
+
+      fontFamily: 'monospace',
+
+    }}>
+
+      v: {commitHash}
+
+    </div>
+
+  );
+
+};
+
+
+
 export default function GaleriaPage() {
-  const pathname = usePathname();
+
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [uploading, setUploading] = useState<boolean>(false);
+
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
-  const [isSlideshowActive, setIsSlideshowActive] = useState<boolean>(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [newCommentText, setNewCommentText] = useState<string>('');
-  const [userName, setUserName] = useState<string>('Gość');
+
+  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
+
+  const [newCommentText, setNewCommentText] = useState('');
+
+  const [isUploading, setIsUploading] = useState(false);
+
+  const [isSlideshowActive, setIsSlideshowActive] = useState(false);
+
+  const [errorImages, setErrorImages] = useState<Record<string, boolean>>({});
+
+  const [uploadStatusText, setUploadStatusText] = useState('');
+
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+ 
+
+  const pathname = usePathname();
+
+
 
   const navLinks = [
+
     { href: '/', icon: Home, label: 'Home' },
+
     { href: '/galeria', icon: GalleryIcon, label: 'Galeria' },
+
     { href: '/games', icon: Gamepad2, label: 'Gry' },
+
     { href: '/contact', icon: Mail, label: 'Kontakt' },
+
   ];
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedName = localStorage.getItem('userName');
-      if (savedName) setUserName(savedName);
-    }
-    fetchMedia();
-  }, []);
+
 
   const fetchMedia = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('media')
-        .select('*')
-        .order('id', { ascending: false });
 
-      if (error) throw error;
-      if (data) {
-        setMediaItems(data.map((item: any) => ({
-          ...item,
-          comments: Array.isArray(item.comments) ? item.comments : [],
-          author_name: item.author_name || 'Gość'
-        })));
+    try {
+
+      const res = await fetch('/api/media', {
+
+  method: 'GET', // ZAWSZE GET!
+
+  cache: 'no-store'
+
+});
+
+      const data = await res.json();
+
+
+
+      if (data.success && Array.isArray(data.data)) {
+
+        const fetchedItems: MediaItem[] = data.data.map((item: any, idx: number) => ({
+
+          id: item.id || `fetched-${idx}-${Date.now()}`,
+
+          type: item.type === 'video' ? 'video' : 'image',
+
+          src: item.url || item.src,
+
+          thumbSrc: item.thumbnail_url || item.thumbSrc,
+
+          alt: 'Zdjęcie z wydarzenia',
+
+          authorName: item.authorName || 'Gość',
+
+          likes: item.likes || 0,
+
+          comments: item.comments || [],
+
+        }));
+
+        setMediaItems(fetchedItems);
+
       }
+
     } catch (err) {
-      console.error('Błąd pobierania mediów:', err);
-    } finally {
-      setLoading(false);
+
+      console.error('Błąd podczas pobierania galerii:', err);
+
     }
+
   };
+
+
 
   useEffect(() => {
-    let timeout: NodeJS.Timeout;
 
-    if (selectedMedia && isSlideshowActive) {
-      if (selectedMedia.type === 'image') {
-        timeout = setTimeout(() => {
-          nextSlide();
-        }, 4000);
-      } else {
-        if (videoRef.current) {
-          videoRef.current.play().catch(() => {
-            timeout = setTimeout(() => nextSlide(), 4000);
-          });
-        }
-      }
-    }
+    fetchMedia();
 
-    return () => clearTimeout(timeout);
-  }, [selectedMedia, isSlideshowActive]);
+    const interval = setInterval(fetchMedia, 5000);
+
+    return () => clearInterval(interval);
+
+  }, []);
+
+
 
   const nextSlide = () => {
-    if (!selectedMedia || mediaItems.length === 0) return;
-    const currentIndex = mediaItems.findIndex((m) => m.id === selectedMedia.id);
-    const nextIndex = (currentIndex + 1) % mediaItems.length;
-    setSelectedMedia(mediaItems[nextIndex]);
+
+    if (!selectedMedia) return;
+
+    setMediaItems((currentItems) => {
+
+      const currentIndex = currentItems.findIndex((m) => m.id === selectedMedia.id);
+
+      const nextIndex = (currentIndex + 1) % currentItems.length;
+
+      setSelectedMedia(currentItems[nextIndex]);
+
+      return currentItems;
+
+    });
+
   };
 
-  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+
+
+  const prevSlide = () => {
+
+    if (!selectedMedia) return;
+
+    setMediaItems((currentItems) => {
+
+      const currentIndex = currentItems.findIndex((m) => m.id === selectedMedia.id);
+
+      const prevIndex = (currentIndex - 1 + currentItems.length) % currentItems.length;
+
+      setSelectedMedia(currentItems[prevIndex]);
+
+      return currentItems;
+
+    });
+
+  };
+
+
+
+  useEffect(() => {
+
+    let interval: NodeJS.Timeout;
+
+    if (selectedMedia && isSlideshowActive) {
+
+      interval = setInterval(nextSlide, 4000);
+
+    }
+
+    return () => clearInterval(interval);
+
+  }, [selectedMedia, isSlideshowActive]);
+
+
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+
     const files = e.target.files;
+
     if (!files || files.length === 0) return;
 
-    setUploading(true);
+
+
+    setIsUploading(true);
+
+    setUploadProgress(0);
+
+    const totalFiles = files.length;
+
+
+
     try {
-      for (let i = 0; i < files.length; i++) {
+
+      for (let i = 0; i < totalFiles; i++) {
+
         const file = files[i];
-        const isVideo = file.type.startsWith('video');
-        let thumbnailUrl = '';
+
+        const currentFileIndex = i + 1;
+
+        const isVideo = file.type.startsWith('video/');
+
+
+
+        let thumbBase64 = '';
 
         if (isVideo) {
+
+          setUploadStatusText(`Generowanie miniaturki ${currentFileIndex}/${totalFiles}...`);
+
           try {
-            thumbnailUrl = await generateVideoThumbnail(file);
-          } catch (err) {
-            console.error('Błąd miniatury wideo', err);
+
+            thumbBase64 = await generateVideoThumbnail(file);
+
+          } catch (thumbErr) {
+
+            console.warn('Nie udało się wygenerować miniaturki wideo:', thumbErr);
+
           }
+
         }
 
-        const fileName = `${Date.now()}_${file.name}`;
-        const { error: uploadError } = await supabase.storage
-          .from('media-bucket')
-          .upload(fileName, file);
 
-        if (uploadError) throw uploadError;
 
-        const { data: publicUrlData } = supabase.storage
-          .from('media-bucket')
-          .getPublicUrl(fileName);
+        // 1. Pobranie presigned URL z API
 
-        const mediaUrl = publicUrlData.publicUrl;
+        setUploadStatusText(`Przygotowanie pliku ${currentFileIndex}/${totalFiles}...`);
 
-        const newItem = {
+       
+
+        const res = await fetch('/api/upload', {
+
+          method: 'POST',
+
+          headers: { 'Content-Type': 'application/json' },
+
+          body: JSON.stringify({ filename: file.name, contentType: file.type }),
+
+        });
+
+
+
+        const uploadData = await res.json();
+
+        if (!uploadData.success || !uploadData.uploadUrl) {
+
+          throw new Error('Nie udało się pobrać URL do przesyłania.');
+
+        }
+
+
+
+        // 2. Bezpośredni upload pliku do S3
+
+        setUploadStatusText(`Wysyłanie pliku ${currentFileIndex}/${totalFiles} do S3...`);
+
+        const uploadRes = await fetch(uploadData.uploadUrl, {
+
+          method: 'PUT',
+
+          headers: { 'Content-Type': file.type },
+
+          body: file,
+
+        });
+
+
+
+        if (!uploadRes.ok) {
+
+          throw new Error('Błąd podczas wysyłania pliku na S3.');
+
+        }
+
+
+
+        // 3. Zapis do bazy danych Supabase
+
+        setUploadStatusText(`Zapisywanie w bazie ${currentFileIndex}/${totalFiles}...`);
+
+        const { error: dbError } = await supabase.from('media').insert([
+
+          {
+
+            url: uploadData.publicUrl,
+
+            type: isVideo ? 'video' : 'image',
+
+          },
+
+        ]);
+
+
+
+        if (dbError) {
+
+          console.error('Błąd zapisu do Supabase:', dbError);
+
+        }
+
+
+
+        // Dodaj nowo wrzucony element od razu do stanu z wygenerowaną miniaturką
+
+        const newItem: MediaItem = {
+
+          id: `local-${Date.now()}-${i}`,
+
           type: isVideo ? 'video' : 'image',
-          src: mediaUrl,
-          thumb_url: isVideo ? thumbnailUrl : mediaUrl,
+
+          src: uploadData.publicUrl,
+
+          thumbSrc: isVideo ? thumbBase64 : uploadData.publicUrl,
+
+          alt: file.name,
+
           likes: 0,
+
           comments: [],
-          author_name: userName,
+
         };
 
-        const { data: insertedData, error: dbError } = await supabase
-          .from('media')
-          .insert([newItem])
-          .select()
-          .single();
+        setMediaItems((prev) => [newItem, ...prev]);
 
-        if (dbError) throw dbError;
 
-        if (insertedData) {
-          setMediaItems((prev) => [
-            {
-              ...insertedData,
-              comments: Array.isArray(insertedData.comments) ? insertedData.comments : [],
-              author_name: insertedData.author_name || 'Gość'
-            },
-            ...prev
-          ]);
-        }
+
+        setUploadProgress(Math.round((currentFileIndex / totalFiles) * 100));
+
       }
-    } catch (err) {
-      console.error('Błąd przesyłania:', err);
-      alert('Wystąpił błąd podczas wysyłania pliku.');
+
+
+
+      setUploadStatusText('Wszystkie pliki zostały pomyślnie przesłane!');
+
+      fetchMedia(); // Odśwież z serwera
+
+    } catch (error) {
+
+      console.error('Błąd podczas przesyłania plików:', error);
+
+      setUploadStatusText('Wystąpił błąd podczas przesyłania.');
+
     } finally {
-      setUploading(false);
-      e.target.value = '';
+
+      setIsUploading(false);
+
     }
+
   };
 
-  const handleLike = async (item: MediaItem, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const updatedLikes = item.likes + 1;
+
+
+  const handleToggleLike = async (id: string | number) => {
+
+    const targetItem = mediaItems.find((item) => item.id === id);
+
+    if (!targetItem) return;
+
+
+
+    const newIsLiked = !targetItem.isLiked;
+
+    const newLikes = newIsLiked ? targetItem.likes + 1 : targetItem.likes - 1;
+
+
 
     setMediaItems((prev) =>
-      prev.map((m) => (m.id === item.id ? { ...m, likes: updatedLikes } : m))
+
+      prev.map((item) => {
+
+        if (item.id === id) {
+
+          const updated = { ...item, likes: newLikes, isLiked: newIsLiked };
+
+          if (selectedMedia?.id === id) setSelectedMedia(updated);
+
+          return updated;
+
+        }
+
+        return item;
+
+      })
+
     );
 
-    if (selectedMedia && selectedMedia.id === item.id) {
-      setSelectedMedia({ ...selectedMedia, likes: updatedLikes });
-    }
+
 
     try {
-      await supabase
-        .from('media')
-        .update({ likes: updatedLikes })
-        .eq('id', item.id);
+
+      await fetch('/api/media', {
+
+        method: 'PATCH',
+
+        headers: { 'Content-Type': 'application/json' },
+
+        body: JSON.stringify({ id, likes: newLikes }),
+
+      });
+
     } catch (err) {
-      console.error('Błąd polubienia:', err);
+
+      console.error('Błąd zapisu lajka:', err);
+
     }
+
   };
 
+
+
   const handleAddComment = async (e: React.FormEvent) => {
+
     e.preventDefault();
+
     if (!newCommentText.trim() || !selectedMedia) return;
 
+
+
     const newComment: Comment = {
+
       id: Date.now().toString(),
-      name: userName,
+
       text: newCommentText.trim(),
+
       createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+
     };
+
+
 
     const updatedComments = [...selectedMedia.comments, newComment];
 
+
+
     setMediaItems((prev) =>
+
       prev.map((item) => {
+
         if (item.id === selectedMedia.id) {
+
           const updated = { ...item, comments: updatedComments };
+
           setSelectedMedia(updated);
+
           return updated;
+
         }
+
         return item;
+
       })
+
     );
+
     setNewCommentText('');
 
+
+
     try {
-      await supabase
-        .from('media')
-        .update({ comments: updatedComments })
-        .eq('id', selectedMedia.id);
+
+      await fetch('/api/media', {
+
+        method: 'PATCH',
+
+        headers: { 'Content-Type': 'application/json' },
+
+        body: JSON.stringify({ id: selectedMedia.id, comments: updatedComments }),
+
+      });
+
     } catch (err) {
+
       console.error('Błąd zapisu komentarza:', err);
+
     }
+
   };
 
-  const handleDelete = async (id: string | number) => {
-    if (!confirm('Czy na pewno chcesz usunąć ten element?')) return;
-    try {
-      await supabase.from('media').delete().eq('id', id);
-      setMediaItems((prev) => prev.filter((item) => item.id !== id));
-      setSelectedMedia(null);
-      setIsSlideshowActive(false);
-    } catch (err) {
-      console.error('Błąd usuwania:', err);
-    }
+
+
+  const closeModal = () => {
+
+    setSelectedMedia(null);
+
+    setIsCommentsOpen(false);
+
+    setIsSlideshowActive(false);
+
   };
+
+
 
   return (
-    <>
-      <div className="gallery-wrapper">
-        <div className="gallery-header-container">
-          <div className="gallery-title-row">
-            <div>
-              <h1 className="gallery-main-title">Galeria Wspomnień</h1>
-              <p className="gallery-subtitle">Cześć, <strong>{userName}</strong>!</p>
-            </div>
-          </div>
-          
-          <div className="gallery-actions">
-            {mediaItems.length > 0 && (
-              <button
-                onClick={() => {
-                  setSelectedMedia(mediaItems[0]);
-                  setIsSlideshowActive(true);
-                }}
-                className="gallery-btn-slideshow"
-              >
-                <Play size={18} /> Pokaz slajdów
-              </button>
-            )}
 
-            <label className="gallery-btn-upload">
-              <Plus size={18} /> {uploading ? 'Wysyłanie...' : 'Dodaj'}
+    <>
+
+      <div className="gallery-container">
+
+        <div className="gallery-header">
+
+          <h1>Galeria Wspomnień</h1>
+
+          <section className="upload-section flex flex-col items-center gap-2">
+
+            <label className="upload-button cursor-pointer">
+
+              {isUploading ? uploadStatusText : 'Prześlij wspomnienie'}
+
               <input
+
                 type="file"
+
                 accept="image/*,video/*"
+
                 multiple
+
+                disabled={isUploading}
+
                 onChange={handleFileUpload}
-                disabled={uploading}
-                className="gallery-hidden-input"
+
+                className="file-input hidden"
+
               />
+
             </label>
-          </div>
+
+          </section>
+
         </div>
 
-        {loading ? (
-          <p className="gallery-status-text">Ładowanie wspomnień...</p>
-        ) : mediaItems.length === 0 ? (
-          <p className="gallery-status-text">Brak zdjęć i filmów. Dodaj pierwsze wspomnienie!</p>
-        ) : (
-          <div className="gallery-grid">
-            {mediaItems.map((item) => (
+
+
+        <div className="masonry-grid">
+
+          {mediaItems
+
+            .filter((item) => !errorImages[item.id])
+
+            .map((item) => (
+
               <div
+
                 key={item.id}
+
+                className="masonry-item"
+
                 onClick={() => {
+
                   setSelectedMedia(item);
+
                   setIsSlideshowActive(false);
+
                 }}
-                className="gallery-grid-item"
+
               >
-                <img
-                  src={item.type === 'video' ? (item.thumb_url || item.src) : item.src}
-                  alt="wspomnienie"
-                  className="gallery-grid-img"
-                />
-                <div className="gallery-grid-overlay">
-                  <span>{item.author_name || 'Gość'}</span>
-                  <span>❤️ {item.likes}</span>
-                </div>
+
+                {item.type === 'image' ? (
+
+  <Image
+
+    src={item.thumbSrc || item.src}
+
+    alt={item.alt}
+
+    width={400}
+
+    height={600}
+
+    unoptimized
+
+    className="gallery-thumb"
+
+    onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
+
+  />
+
+) : (
+
+  <div className="video-thumb-container">
+
+    <video
+
+      src={item.src}
+
+      preload="metadata"
+
+      className="gallery-thumb object-cover"
+
+      onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
+
+    />
+
+    <div className="play-overlay">
+
+      <span className="play-icon">▶</span>
+
+    </div>
+
+  </div>
+
+)}
+
               </div>
+
             ))}
+
+        </div>
+
+
+
+        {selectedMedia && (
+
+          <div
+
+            className="reel-modal-overlay"
+
+            onTouchStart={(e) => {
+
+              (e.currentTarget as HTMLElement & { touchStartX?: number }).touchStartX = e.touches[0].clientX;
+
+            }}
+
+            onTouchEnd={(e) => {
+
+              const target = e.currentTarget as HTMLElement & { touchStartX?: number };
+
+              const startX = target.touchStartX;
+
+              if (startX === undefined) return;
+
+
+
+              const diffX = startX - e.changedTouches[0].clientX;
+
+              if (diffX > 50) nextSlide();
+
+              else if (diffX < -50) prevSlide();
+
+            }}
+
+          >
+
+            <button className="reel-close-btn" onClick={closeModal}>✕</button>
+
+
+
+            <div className="reel-media-wrapper reel-media-animated" key={selectedMedia.id} onClick={() => setIsCommentsOpen(false)}>
+
+              {selectedMedia.type === 'image' ? (
+
+                <Image
+
+                  src={selectedMedia.src}
+
+                  alt={selectedMedia.alt}
+
+                  fill
+
+                  unoptimized
+
+                  className="reel-media"
+
+                />
+
+              ) : (
+
+                <video
+
+                  src={selectedMedia.src}
+
+                  controls
+
+                  playsInline
+
+                  preload="metadata"
+
+                  className="reel-media"
+
+                />
+
+              )}
+
+            </div>
+
+
+
+            <div className="reel-author-info">
+
+              <div className="author-avatar">{(selectedMedia.authorName || 'D')[0].toUpperCase()}</div>
+
+              <span className="author-name">{selectedMedia.authorName || 'Damian'}</span>
+
+            </div>
+
+
+
+            <div className="reel-actions">
+
+              <button
+
+                className="action-btn slideshow-toggle-square-btn"
+
+                onClick={() => setIsSlideshowActive((prev) => !prev)}
+
+                title={isSlideshowActive ? 'Zatrzymaj pokaz' : 'Rozpocznij pokaz'}
+
+              >
+
+                <span className="icon">{isSlideshowActive ? '⏸' : '▶'}</span>
+
+              </button>
+
+
+
+              <button
+
+                className={`action-btn ${selectedMedia.isLiked ? 'liked' : ''}`}
+
+                onClick={() => handleToggleLike(selectedMedia.id)}
+
+              >
+
+                <span className="icon">⭐</span>
+
+                <span className="count">{selectedMedia.likes}</span>
+
+              </button>
+
+
+
+              <button className="action-btn" onClick={() => setIsCommentsOpen((prev) => !prev)}>
+
+                <span className="icon">💬</span>
+
+                <span className="count">{selectedMedia.comments.length}</span>
+
+              </button>
+
+            </div>
+
+
+
+            <div className={`bottom-comments-sheet ${isCommentsOpen ? 'open' : ''}`}>
+
+              <div className="sheet-header">
+
+                <span>Komentarze ({selectedMedia.comments.length})</span>
+
+                <button className="sheet-close" onClick={() => setIsCommentsOpen(false)}>✕</button>
+
+              </div>
+
+
+
+              <div className="sheet-comments-list">
+
+                {selectedMedia.comments.length === 0 ? (
+
+                  <p className="no-comments">Brak komentarzy. Napisz coś!</p>
+
+                ) : (
+
+                  selectedMedia.comments.map((comment) => (
+
+                    <div key={comment.id} className="sheet-comment-item">
+
+                      <p className="comment-text">{comment.text}</p>
+
+                      <span className="comment-time">{comment.createdAt}</span>
+
+                    </div>
+
+                  ))
+
+                )}
+
+              </div>
+
+
+
+              <form onSubmit={handleAddComment} className="sheet-form">
+
+                <input
+
+                  type="text"
+
+                  placeholder="Dodaj komentarz..."
+
+                  value={newCommentText}
+
+                  onChange={(e) => setNewCommentText(e.target.value)}
+
+                />
+
+                <button type="submit">Wyślij</button>
+
+              </form>
+
+            </div>
+
           </div>
+
         )}
+
       </div>
 
-      {selectedMedia && (
-        <div className="gallery-modal-overlay">
-          <button
-            onClick={() => { setSelectedMedia(null); setIsSlideshowActive(false); }}
-            className="gallery-modal-close"
-          >
-            <X size={28} />
-          </button>
 
-          <div className="gallery-modal-top-controls">
-            <button
-              onClick={() => setIsSlideshowActive(!isSlideshowActive)}
-              className="gallery-btn-toggle-slideshow"
-            >
-              {isSlideshowActive ? <Pause size={16} /> : <Play size={16} />}
-              {isSlideshowActive ? 'Zatrzymaj pokaz' : 'Włącz pokaz'}
-            </button>
-          </div>
-
-          <div className="gallery-modal-content">
-            {selectedMedia.type === 'image' ? (
-              <img
-                src={selectedMedia.src}
-                alt="Fullscreen"
-                className="gallery-modal-media"
-              />
-            ) : (
-              <video
-                ref={videoRef}
-                src={selectedMedia.src}
-                controls
-                autoPlay={isSlideshowActive}
-                playsInline
-                preload="metadata"
-                className="gallery-modal-media"
-                onEnded={() => {
-                  if (isSlideshowActive) {
-                    nextSlide();
-                  }
-                }}
-              />
-            )}
-
-            <div className="gallery-modal-info-bar">
-              <span>Autor: <strong>{selectedMedia.author_name || 'Gość'}</strong></span>
-              <div className="gallery-modal-actions">
-                <button
-                  onClick={(e) => handleLike(selectedMedia, e)}
-                  className="gallery-btn-like"
-                >
-                  <Heart size={20} fill="#ff4d4f" /> {selectedMedia.likes}
-                </button>
-                <button
-                  onClick={() => handleDelete(selectedMedia.id)}
-                  className="gallery-btn-delete"
-                  title="Usuń"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            </div>
-
-            <div className="gallery-comments-box">
-              {selectedMedia.comments.length === 0 ? (
-                <p className="gallery-comments-empty">Brak komentarzy.</p>
-              ) : (
-                selectedMedia.comments.map((c) => (
-                  <div key={c.id} className="gallery-comment-item">
-                    <div className="gallery-comment-header">
-                      <span className="gallery-comment-author">{c.name || 'Gość'}</span>
-                      <span className="gallery-comment-time">{c.createdAt}</span>
-                    </div>
-                    <p className="gallery-comment-text">{c.text}</p>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <form onSubmit={handleAddComment} className="gallery-comment-form">
-              <input
-                type="text"
-                placeholder="Napisz komentarz..."
-                value={newCommentText}
-                onChange={(e) => setNewCommentText(e.target.value)}
-                className="gallery-comment-input"
-              />
-              <button type="submit" className="gallery-comment-submit">
-                Wyślij
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
 
       <VersionBadge />
 
+
+
+      <div className="scroll-to-top-wrapper">
+
+        <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="scroll-to-top-btn">
+
+          ↑ Powrót na górę
+
+        </button>
+
+      </div>
+
+
+
       <nav>
+
         <ul>
+
           {navLinks.map((link) => {
+
             const Icon = link.icon;
+
             return (
+
               <li key={link.href}>
+
                 <Link
+
                   href={link.href}
+
                   className={pathname === link.href ? 'nav-item active' : 'nav-item'}
+
                   title={link.label}
+
                   aria-label={link.label}
+
                 >
+
                   <Icon size={24} />
+
                 </Link>
+
               </li>
+
             );
+
           })}
+
         </ul>
+
       </nav>
+
     </>
+
   );
+
 }
