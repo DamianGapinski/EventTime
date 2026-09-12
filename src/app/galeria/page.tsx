@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Image as GalleryIcon, Gamepad2, Mail, Heart, Trash2, X, Play, Pause, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import './GaleriaPage.css'; // <-- Zaimportowany plik stylów
 
 interface Comment {
   id: string;
@@ -290,56 +291,29 @@ export default function GaleriaPage() {
 
   return (
     <>
-      <div className="gallery-container" style={{ paddingBottom: '100px', padding: '15px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="gallery-wrapper">
+        <div className="gallery-header-container">
+          <div className="gallery-title-row">
             <div>
-              <h1 style={{ margin: 0, fontSize: '24px' }}>Galeria Wspomnień</h1>
-              <p style={{ color: '#666', fontSize: '13px', margin: '4px 0 0 0' }}>Cześć, <strong>{userName}</strong>!</p>
+              <h1 className="gallery-main-title">Galeria Wspomnień</h1>
+              <p className="gallery-subtitle">Cześć, <strong>{userName}</strong>!</p>
             </div>
           </div>
           
-          <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+          <div className="gallery-actions">
             {mediaItems.length > 0 && (
               <button
                 onClick={() => {
                   setSelectedMedia(mediaItems[0]);
                   setIsSlideshowActive(true);
                 }}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  backgroundColor: '#10b981',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '12px',
-                  borderRadius: '8px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
+                className="gallery-btn-slideshow"
               >
                 <Play size={18} /> Pokaz slajdów
               </button>
             )}
 
-            <label style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              backgroundColor: '#0070f3',
-              color: '#fff',
-              padding: '12px',
-              borderRadius: '8px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}>
+            <label className="gallery-btn-upload">
               <Plus size={18} /> {uploading ? 'Wysyłanie...' : 'Dodaj'}
               <input
                 type="file"
@@ -347,18 +321,18 @@ export default function GaleriaPage() {
                 multiple
                 onChange={handleFileUpload}
                 disabled={uploading}
-                style={{ display: 'none' }}
+                className="gallery-hidden-input"
               />
             </label>
           </div>
         </div>
 
         {loading ? (
-          <p style={{ textAlign: 'center', color: '#888', marginTop: '40px' }}>Ładowanie wspomnień...</p>
+          <p className="gallery-status-text">Ładowanie wspomnień...</p>
         ) : mediaItems.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#888', marginTop: '40px' }}>Brak zdjęć i filmów. Dodaj pierwsze wspomnienie!</p>
+          <p className="gallery-status-text">Brak zdjęć i filmów. Dodaj pierwsze wspomnienie!</p>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
+          <div className="gallery-grid">
             {mediaItems.map((item) => (
               <div
                 key={item.id}
@@ -366,32 +340,14 @@ export default function GaleriaPage() {
                   setSelectedMedia(item);
                   setIsSlideshowActive(false);
                 }}
-                style={{
-                  position: 'relative',
-                  aspectRatio: '1',
-                  borderRadius: '8px',
-                  overflow: 'hidden',
-                  cursor: 'pointer',
-                  background: '#000',
-                }}
+                className="gallery-grid-item"
               >
                 <img
                   src={item.type === 'video' ? (item.thumb_url || item.src) : item.src}
                   alt="wspomnienie"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  className="gallery-grid-img"
                 />
-                <div style={{
-                  position: 'absolute',
-                  bottom: '0',
-                  left: '0',
-                  right: '0',
-                  padding: '6px 8px',
-                  background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
-                  color: '#fff',
-                  fontSize: '11px',
-                  display: 'flex',
-                  justifyContent: 'space-between'
-                }}>
+                <div className="gallery-grid-overlay">
                   <span>{item.author_name || 'Gość'}</span>
                   <span>❤️ {item.likes}</span>
                 </div>
@@ -402,43 +358,30 @@ export default function GaleriaPage() {
       </div>
 
       {selectedMedia && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.9)',
-          zIndex: 1000,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '20px'
-        }}>
+        <div className="gallery-modal-overlay">
           <button
             onClick={() => { setSelectedMedia(null); setIsSlideshowActive(false); }}
-            style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}
+            className="gallery-modal-close"
           >
             <X size={28} />
           </button>
 
-          <div style={{ position: 'absolute', top: '20px', left: '20px', display: 'flex', gap: '10px' }}>
+          <div className="gallery-modal-top-controls">
             <button
               onClick={() => setIsSlideshowActive(!isSlideshowActive)}
-              style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+              className="gallery-btn-toggle-slideshow"
             >
               {isSlideshowActive ? <Pause size={16} /> : <Play size={16} />}
               {isSlideshowActive ? 'Zatrzymaj pokaz' : 'Włącz pokaz'}
             </button>
           </div>
 
-          <div style={{ maxWidth: '500px', width: '100%', maxHeight: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+          <div className="gallery-modal-content">
             {selectedMedia.type === 'image' ? (
               <img
                 src={selectedMedia.src}
                 alt="Fullscreen"
-                style={{ maxWidth: '100%', maxHeight: '50vh', objectFit: 'contain', borderRadius: '8px' }}
+                className="gallery-modal-media"
               />
             ) : (
               <video
@@ -448,7 +391,7 @@ export default function GaleriaPage() {
                 autoPlay={isSlideshowActive}
                 playsInline
                 preload="metadata"
-                style={{ maxWidth: '100%', maxHeight: '50vh', objectFit: 'contain', borderRadius: '8px' }}
+                className="gallery-modal-media"
                 onEnded={() => {
                   if (isSlideshowActive) {
                     nextSlide();
@@ -457,18 +400,18 @@ export default function GaleriaPage() {
               />
             )}
 
-            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', color: '#fff' }}>
+            <div className="gallery-modal-info-bar">
               <span>Autor: <strong>{selectedMedia.author_name || 'Gość'}</strong></span>
-              <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+              <div className="gallery-modal-actions">
                 <button
                   onClick={(e) => handleLike(selectedMedia, e)}
-                  style={{ background: 'none', border: 'none', color: '#ff4d4f', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '16px' }}
+                  className="gallery-btn-like"
                 >
                   <Heart size={20} fill="#ff4d4f" /> {selectedMedia.likes}
                 </button>
                 <button
                   onClick={() => handleDelete(selectedMedia.id)}
-                  style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}
+                  className="gallery-btn-delete"
                   title="Usuń"
                 >
                   <Trash2 size={18} />
@@ -476,31 +419,31 @@ export default function GaleriaPage() {
               </div>
             </div>
 
-            <div style={{ width: '100%', background: '#1e1e1e', borderRadius: '8px', padding: '12px', marginTop: '10px', maxHeight: '150px', overflowY: 'auto' }}>
+            <div className="gallery-comments-box">
               {selectedMedia.comments.length === 0 ? (
-                <p style={{ color: '#888', fontSize: '13px', textAlign: 'center', margin: 0 }}>Brak komentarzy.</p>
+                <p className="gallery-comments-empty">Brak komentarzy.</p>
               ) : (
                 selectedMedia.comments.map((c) => (
-                  <div key={c.id} style={{ marginBottom: '10px', fontSize: '13px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '6px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                      <span style={{ color: '#38bdf8', fontWeight: 'bold', fontSize: '12px' }}>{c.name || 'Gość'}</span>
-                      <span style={{ fontSize: '10px', color: '#888' }}>{c.createdAt}</span>
+                  <div key={c.id} className="gallery-comment-item">
+                    <div className="gallery-comment-header">
+                      <span className="gallery-comment-author">{c.name || 'Gość'}</span>
+                      <span className="gallery-comment-time">{c.createdAt}</span>
                     </div>
-                    <p style={{ color: '#fff', margin: '0', fontSize: '14px' }}>{c.text}</p>
+                    <p className="gallery-comment-text">{c.text}</p>
                   </div>
                 ))
               )}
             </div>
 
-            <form onSubmit={handleAddComment} style={{ width: '100%', display: 'flex', gap: '8px', marginTop: '8px' }}>
+            <form onSubmit={handleAddComment} className="gallery-comment-form">
               <input
                 type="text"
                 placeholder="Napisz komentarz..."
                 value={newCommentText}
                 onChange={(e) => setNewCommentText(e.target.value)}
-                style={{ flex: 1, padding: '8px 12px', borderRadius: '6px', border: 'none', fontSize: '13px' }}
+                className="gallery-comment-input"
               />
-              <button type="submit" style={{ background: '#0070f3', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+              <button type="submit" className="gallery-comment-submit">
                 Wyślij
               </button>
             </form>
