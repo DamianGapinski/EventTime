@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Image as GalleryIcon, Gamepad2, Mail, Heart, Trash2, X, Play, Pause, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import './GaleriaPage.css'; // <-- Zaimportowany plik stylów
+
 
 interface Comment {
   id: string;
