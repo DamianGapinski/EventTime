@@ -981,3 +981,281 @@ nav ul li{
 .gallery-hidden-input {
   display: none;
 }
+.gallery-wrapper {
+  padding-bottom: 100px;
+  padding: 15px;
+}
+
+.gallery-header-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.gallery-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.gallery-main-title {
+  margin: 0;
+  font-size: 24px;
+}
+
+.gallery-subtitle {
+  color: #666;
+  font-size: 13px;
+  margin: 4px 0 0 0;
+}
+
+.gallery-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.gallery-btn-slideshow {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background-color: #10b981;
+  color: #fff;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.gallery-btn-upload {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background-color: #0070f3;
+  color: #fff;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.gallery-hidden-input {
+  display: none;
+}
+
+.gallery-status-text {
+  text-align: center;
+  color: #888;
+  margin-top: 40px;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.gallery-grid-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #000;
+}
+
+.gallery-grid-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gallery-grid-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 6px 8px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  color: #fff;
+  font-size: 11px;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Modal pełnoekranowy */
+.gallery-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.gallery-modal-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+}
+
+.gallery-modal-top-controls {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.gallery-btn-toggle-slideshow {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gallery-modal-content {
+  max-width: 500px;
+  width: 100%;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.gallery-modal-media {
+  max-width: 100%;
+  max-height: 50vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.gallery-modal-info-bar {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  color: #fff;
+}
+
+.gallery-modal-actions {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.gallery-btn-like {
+  background: none;
+  border: none;
+  color: #ff4d4f;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 16px;
+}
+
+.gallery-btn-delete {
+  background: none;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+}
+
+.gallery-comments-box {
+  width: 100%;
+  background: #1e1e1e;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 10px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.gallery-comments-empty {
+  color: #888;
+  font-size: 13px;
+  text-align: center;
+  margin: 0;
+}
+
+.gallery-comment-item {
+  margin-bottom: 10px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 6px;
+}
+
+.gallery-comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.gallery-comment-author {
+  color: #38bdf8;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.gallery-comment-time {
+  font-size: 10px;
+  color: #888;
+}
+
+.gallery-comment-text {
+  color: #fff;
+  margin: 0;
+  font-size: 14px;
+}
+
+.gallery-comment-form {
+  width: 100%;
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.gallery-comment-input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: none;
+  font-size: 13px;
+}
+
+.gallery-comment-submit {
+  background: #0070f3;
+  color: #fff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
