@@ -570,44 +570,7 @@ export default function GaleriaPage() {
         )}
 
         {/* Modal Tożsamości */}
-        {isProfileModalOpen && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[10000] p-4">
-            <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-xl max-w-md w-full shadow-xl">
-              <h2 className="text-xl font-bold text-white mb-2">Przedstaw się</h2>
-              <p className="text-sm text-neutral-400 mb-4">Wpisz swoje imię i opcjonalnie podaj link do zdjęcia, aby inni wiedzieli, kto dodaje wspomnienia.</p>
-              
-              <form onSubmit={handleSaveProfile} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-300 mb-1">Imię i nazwisko / Pseudonim</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="np. Anna Nowak"
-                    value={tempName}
-                    onChange={(e) => setTempName(e.target.value)}
-                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-300 mb-1">Link do zdjęcia profilowego (opcjonalnie)</label>
-                  <input
-                    type="url"
-                    placeholder="https://example.com/avatar.jpg"
-                    value={tempAvatar}
-                    onChange={(e) => setTempAvatar(e.target.value)}
-                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2 rounded-lg transition-colors text-sm"
-                >
-                  Zapisz i kontynuuj
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
+        
       </div>
 
       <VersionBadge />
