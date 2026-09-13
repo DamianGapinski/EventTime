@@ -71,6 +71,7 @@ export default function Home() {
           <li><h3>4. Lajkuj i komentuj zdjęcia/filmy innych użytkowników</h3></li>
         </ol>
       </main>
+      
     </>
   );
 }

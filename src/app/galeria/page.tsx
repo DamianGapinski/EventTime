@@ -127,29 +127,13 @@ export default function GaleriaPage() {
       token = crypto.randomUUID();
       localStorage.setItem('app_browser_token', token);
     }
-    const savedName = localStorage.getItem('app_user_name');
+    const savedName = localStorage.getItem('gallery_user_name') || localStorage.getItem('app_user_name');
     const savedAvatar = localStorage.getItem('app_user_avatar');
 
     if (savedName) {
       setProfile({ id: token, name: savedName, avatarUrl: savedAvatar || undefined });
-    } else {
-      setIsProfileModalOpen(true);
     }
   }, []);
-
-  const handleSaveProfile = (e: FormEvent) => {
-    e.preventDefault();
-    if (!tempName.trim()) return;
-
-    const token = localStorage.getItem('app_browser_token')!;
-    localStorage.setItem('app_user_name', tempName.trim());
-    if (tempAvatar.trim()) {
-      localStorage.setItem('app_user_avatar', tempAvatar.trim());
-    }
-
-    setProfile({ id: token, name: tempName.trim(), avatarUrl: tempAvatar.trim() || undefined });
-    setIsProfileModalOpen(false);
-  };
 
   const fetchMedia = async () => {
     try {
@@ -203,7 +187,6 @@ export default function GaleriaPage() {
     });
   };
 
-  // Inteligentny pokaz slajdów: obsługa wideo + fallback timer dla zdjęć
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (selectedMedia && isSlideshowActive) {
@@ -265,11 +248,12 @@ export default function GaleriaPage() {
         }
 
         setUploadStatusText(`Zapisywanie w bazie ${currentFileIndex}/${totalFiles}...`);
+        const currentAuthorName = localStorage.getItem('gallery_user_name') || profile?.name || 'Gość';
         const { error: dbError } = await supabase.from('media').insert([
           {
             url: uploadData.publicUrl,
             type: isVideo ? 'video' : 'image',
-            authorName: profile?.name || 'Gość',
+            authorName: currentAuthorName,
             authorAvatar: profile?.avatarUrl || null,
           },
         ]);
@@ -284,7 +268,7 @@ export default function GaleriaPage() {
           src: uploadData.publicUrl,
           thumbSrc: isVideo ? thumbBase64 : uploadData.publicUrl,
           alt: file.name,
-          authorName: profile?.name || 'Gość',
+          authorName: currentAuthorName,
           authorAvatar: profile?.avatarUrl,
           likes: 0,
           comments: [],
@@ -310,7 +294,7 @@ export default function GaleriaPage() {
     const likedItems: string[] = JSON.parse(localStorage.getItem('liked_media') || '[]');
     const isAlreadyLiked = likedItems.includes(String(id));
 
-    if (isAlreadyLiked) return; // Zablokuj ponowne polubienie
+    if (isAlreadyLiked) return;
 
     const newLikes = targetItem.likes + 1;
 
@@ -343,11 +327,12 @@ export default function GaleriaPage() {
     e.preventDefault();
     if (!newCommentText.trim() || !selectedMedia) return;
 
+    const currentAuthorName = localStorage.getItem('gallery_user_name') || profile?.name || 'Gość';
     const newComment: Comment = {
       id: Date.now().toString(),
       text: newCommentText.trim(),
       createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      authorName: profile?.name || 'Gość',
+      authorName: currentAuthorName,
     };
 
     const updatedComments = [...selectedMedia.comments, newComment];
@@ -389,10 +374,7 @@ export default function GaleriaPage() {
           
           <div className="flex items-center gap-3 mb-4">
             {profile && (
-              <div 
-                onClick={() => setIsProfileModalOpen(true)}
-                className="flex items-center gap-2 cursor-pointer bg-neutral-800 px-3 py-1.5 rounded-full border border-neutral-700"
-              >
+              <div className="flex items-center gap-2 bg-neutral-800 px-3 py-1.5 rounded-full border border-neutral-700">
                 {profile.avatarUrl ? (
                   <img src={profile.avatarUrl} alt="Avatar" className="w-6 h-6 rounded-full object-cover" />
                 ) : (
@@ -401,7 +383,6 @@ export default function GaleriaPage() {
                   </div>
                 )}
                 <span className="text-sm font-medium text-white">{profile.name}</span>
-                <span className="text-xs text-neutral-400">Edytuj</span>
               </div>
             )}
           </div>
@@ -568,9 +549,6 @@ export default function GaleriaPage() {
             </div>
           </div>
         )}
-
-        {/* Modal Tożsamości */}
-        
       </div>
 
       <VersionBadge />
