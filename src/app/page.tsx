@@ -9,7 +9,15 @@ export default function Home() {
   const [userName, setUserName] = useState('');
 
   useEffect(() => {
-    const savedName = localStorage.getItem('userName');
+    // Sprawdzamy lokalną pamięć przeglądarki oraz unikalny token identyfikujący urządzenie/przeglądarkę
+    let token = localStorage.getItem('app_browser_token');
+    if (!token) {
+      token = crypto.randomUUID();
+      localStorage.setItem('app_browser_token', token);
+    }
+
+    const savedName = localStorage.getItem('userName') || localStorage.getItem('gallery_user_name');
+    
     if (!savedName) {
       setIsNameModalOpen(true);
     } else {
@@ -21,14 +29,19 @@ export default function Home() {
     e.preventDefault();
     if (!tempNameInput.trim()) return;
 
-    localStorage.setItem('userName', tempNameInput.trim());
-    setUserName(tempNameInput.trim());
+    const trimmedName = tempNameInput.trim();
+    
+    // Zapisujemy pod kluczami używanymi w całej aplikacji, żeby imię było powiązane z sesją
+    localStorage.setItem('userName', trimmedName);
+    localStorage.setItem('gallery_user_name', trimmedName);
+    
+    setUserName(trimmedName);
     setIsNameModalOpen(false);
   };
 
   return (
     <>
-      {/* Wyskakujący modal na stronie głównej */}
+      {/* Wyskakujący modal tożsamości */}
       {isNameModalOpen && (
         <div className="name-modal-overlay">
           <div className="name-modal-content">
@@ -57,6 +70,11 @@ export default function Home() {
       </header>
       <main>
         
+        {userName && (
+          <div style={{ textAlign: 'center', margin: '10px 0', color: '#888', fontSize: '14px' }}>
+            Witaj, <strong style={{ color: '#0070f3' }}>{userName}</strong>!
+          </div>
+        )}
         
         <div style={{ textAlign: 'center', margin: '20px 0' }}>
           <Link href="/galeria" style={{ padding: '12px 24px', background: '#0070f3', color: '#fff', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold' }}>
@@ -71,7 +89,6 @@ export default function Home() {
           <li><h3>4. Lajkuj i komentuj zdjęcia/filmy innych użytkowników</h3></li>
         </ol>
       </main>
-      
     </>
   );
 }
