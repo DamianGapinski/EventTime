@@ -406,18 +406,20 @@ export default function GaleriaPage() {
                     onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
                   />
                 ) : (
-                  <div className="video-thumb-container">
-                    <video
-                      src={item.src}
-                      preload="metadata"
-                      className="gallery-thumb object-cover"
-                      onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
-                    />
-                    <div className="play-overlay">
-                      <span className="play-icon">▶</span>
-                    </div>
-                  </div>
-                )}
+  <div className="video-thumb-container">
+    <video
+      src={`${item.src}#t=0.001`}
+      preload="metadata"
+      muted
+      playsInline
+      className="gallery-thumb object-cover"
+      onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
+    />
+    <div className="play-overlay">
+      <span className="icon">▶</span>
+    </div>
+  </div>
+)}
               </div>
             ))}
         </div>
