@@ -309,14 +309,15 @@ export default function GaleriaPage() {
     const likedItems: string[] = JSON.parse(localStorage.getItem('liked_media') || '[]');
     const isAlreadyLiked = likedItems.includes(String(id));
 
-    if (isAlreadyLiked) return;
+    // Ustalamy nową liczbę lajków i stan (dodajemy lub odejmujemy 1)
+    const newLikes = isAlreadyLiked ? Math.max(0, targetItem.likes - 1) : targetItem.likes + 1;
+    const newIsLikedState = !isAlreadyLiked;
 
-    const newLikes = targetItem.likes + 1;
-
+    // Aktualizujemy stan lokalny od razu (dla płynności interfejsu)
     setMediaItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
-          const updated = { ...item, likes: newLikes, isLiked: true };
+          const updated = { ...item, likes: newLikes, isLiked: newIsLikedState };
           if (selectedMedia?.id === id) setSelectedMedia(updated);
           return updated;
         }
@@ -324,9 +325,16 @@ export default function GaleriaPage() {
       })
     );
 
-    const updatedLikedItems = [...likedItems, String(id)];
+    // Aktualizujemy localStorage
+    let updatedLikedItems: string[];
+    if (isAlreadyLiked) {
+      updatedLikedItems = likedItems.filter((itemKey) => itemKey !== String(id));
+    } else {
+      updatedLikedItems = [...likedItems, String(id)];
+    }
     localStorage.setItem('liked_media', JSON.stringify(updatedLikedItems));
 
+    // Wysyłamy zaktualizowaną liczbę lajków do bazy danych Supabase
     try {
       await fetch('/api/media', {
         method: 'PATCH',
