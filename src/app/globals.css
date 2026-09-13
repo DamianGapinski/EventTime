@@ -1010,6 +1010,7 @@ nav ul li{
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   white-space: nowrap;
+  margin: 0 !important;
 }
 
 .user-badge-btn.expanded {
