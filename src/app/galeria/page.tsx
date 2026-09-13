@@ -156,7 +156,7 @@ export default function GaleriaPage() {
           src: item.url || item.src,
           thumbSrc: item.thumbnail_url || item.thumbSrc,
           alt: 'Zdjęcie z wydarzenia',
-          authorName: item.authorName || 'Gość',
+          authorName: item.authorName && item.authorName.trim() !== '' ? item.authorName : 'Gość',
           authorAvatar: item.authorAvatar,
           likes: item.likes || 0,
           isLiked: likedItems.includes(String(item.id)),
@@ -257,12 +257,14 @@ export default function GaleriaPage() {
 
         setUploadStatusText(`Zapisywanie w bazie ${currentFileIndex}/${totalFiles}...`);
         const currentAuthorName = localStorage.getItem('gallery_user_name') || localStorage.getItem('userName') || profile?.name || 'Gość';
+        const currentAvatarUrl = localStorage.getItem('app_user_avatar') || profile?.avatarUrl || null;
+
         const { error: dbError } = await supabase.from('media').insert([
           {
             url: uploadData.publicUrl,
             type: isVideo ? 'video' : 'image',
             authorName: currentAuthorName,
-            authorAvatar: profile?.avatarUrl || null,
+            authorAvatar: currentAvatarUrl,
           },
         ]);
 
@@ -277,7 +279,7 @@ export default function GaleriaPage() {
           thumbSrc: isVideo ? thumbBase64 : uploadData.publicUrl,
           alt: file.name,
           authorName: currentAuthorName,
-          authorAvatar: profile?.avatarUrl,
+          authorAvatar: currentAvatarUrl || undefined,
           likes: 0,
           comments: [],
         };
