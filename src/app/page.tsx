@@ -42,7 +42,6 @@ export default function Home() {
 
   return (
     <>
-      {/* Wyskakujący modal tożsamości */}
       {isNameModalOpen && (
         <div className="name-modal-overlay">
           <div className="name-modal-content">
@@ -66,59 +65,19 @@ export default function Home() {
         </div>
       )}
 
-      {/* Profil w prawym górnym rogu */}
       {userName && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          zIndex: 1000,
-          display: 'flex',
-          alignItems: 'center',
-        }}>
+        <div className="user-badge-container">
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: isExpanded ? 'flex-start' : 'center',
-              gap: '10px',
-              background: '#1a1a1a',
-              color: '#fff',
-              border: '2px solid #0070f3',
-              borderRadius: isExpanded ? '16px' : '50%',
-              width: isExpanded ? 'auto' : '45px',
-              height: '45px',
-              padding: isExpanded ? '0 16px 0 8px' : '0',
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              overflow: 'hidden',
-              whiteSpace: 'nowrap',
-            }}
+            className={`user-badge-btn ${isExpanded ? 'expanded' : ''}`}
             title="Kliknij, aby zobaczyć imię"
           >
-            <div style={{
-              minWidth: '31px',
-              height: '31px',
-              borderRadius: '50%',
-              background: '#0070f3',
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 'bold',
-              fontSize: '16px',
-            }}>
+            <div className="user-badge-avatar">
               {firstLetter}
             </div>
             {isExpanded && (
-              <span style={{
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#fff',
-              }}>
-                Witaj, <strong style={{ color: '#38bdf8' }}>{userName}</strong>!
+              <span className="user-badge-text">
+                Witaj, <strong className="user-badge-name">{userName}</strong>!
               </span>
             )}
           </button>
@@ -129,8 +88,8 @@ export default function Home() {
         <h1><strong>Damian & Viktoria</strong><br/><br/> Uwiecznij wszystkie chwile</h1>
       </header>
       <main>
-        <div style={{ textAlign: 'center', margin: '30px 0' }}>
-          <Link href="/galeria" style={{ padding: '12px 24px', background: '#0070f3', color: '#fff', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold' }}>
+        <div className="gallery-link-wrapper">
+          <Link href="/galeria" className="gallery-link-btn">
             Przejdź do galerii
           </Link>
         </div>

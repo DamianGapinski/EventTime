@@ -981,3 +981,85 @@ nav ul li{
 .gallery-hidden-input {
   display: none;
 }
+
+/* Styl dla przycisku tożsamości w prawym górnym rogu */
+.user-badge-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  zIndex: 1000;
+  display: flex;
+  align-items: center;
+  z-index: 1000;
+}
+
+.user-badge-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #1a1a1a;
+  color: #fff;
+  border: 2px solid #0070f3;
+  border-radius: 50%;
+  width: 45px;
+  height: 45px;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.user-badge-btn.expanded {
+  border-radius: 16px;
+  width: auto;
+  justify-content: flex-start;
+  padding: 0 16px 0 8px;
+}
+
+.user-badge-avatar {
+  min-width: 31px;
+  width: 31px;
+  height: 31px;
+  border-radius: 50%;
+  background: #0070f3;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.user-badge-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.user-badge-name {
+  color: #38bdf8;
+}
+
+/* Styl dla przycisku przejścia do galerii */
+.gallery-link-wrapper {
+  text-align: center;
+  margin: 30px 0;
+}
+
+.gallery-link-btn {
+  padding: 12px 24px;
+  background: #0070f3;
+  color: #fff;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: bold;
+  display: inline-block;
+  transition: background 0.2s ease;
+}
+
+.gallery-link-btn:hover {
+  background: #005bb5;
+}
