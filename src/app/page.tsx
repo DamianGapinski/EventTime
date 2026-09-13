@@ -86,13 +86,14 @@ export default function Home() {
 
       <header>
         <h1><strong>Damian & Viktoria</strong><br/><br/> Uwiecznij wszystkie chwile</h1>
-      </header>
-      <main>
         <div className="gallery-link-wrapper">
           <Link href="/galeria" className="gallery-link-btn">
             Przejdź do galerii
           </Link>
         </div>
+      </header>
+      <main>
+        
 
         <ol>
           <li><h3>1. Zrób lub dodaj zdjęcie/film z galerii</h3></li>
