@@ -150,18 +150,24 @@ export default function GaleriaPage() {
 
       if (data.success && Array.isArray(data.data)) {
         const likedItems: string[] = JSON.parse(localStorage.getItem('liked_media') || '[]');
-        const fetchedItems: MediaItem[] = data.data.map((item: any, idx: number) => ({
-          id: item.id || `fetched-${idx}-${Date.now()}`,
-          type: item.type === 'video' ? 'video' : 'image',
-          src: item.url || item.src,
-          thumbSrc: item.thumbnail_url || item.thumbSrc,
-          alt: 'Zdjęcie z wydarzenia',
-          authorName: item.authorName && item.authorName.trim() !== '' ? item.authorName : 'Gość',
-          authorAvatar: item.authorAvatar,
-          likes: item.likes || 0,
-          isLiked: likedItems.includes(String(item.id)),
-          comments: item.comments || [],
-        }));
+        const fetchedItems: MediaItem[] = data.data.map((item: any, idx: number) => {
+          // Sprawdzamy obie wersje nazwy kolumny (z camelCase lub snake_case)
+          const resolvedAuthorName = item.authorName || item.author_name;
+          const resolvedAuthorAvatar = item.authorAvatar || item.author_avatar;
+
+          return {
+            id: item.id || `fetched-${idx}-${Date.now()}`,
+            type: item.type === 'video' ? 'video' : 'image',
+            src: item.url || item.src,
+            thumbSrc: item.thumbnail_url || item.thumbSrc,
+            alt: 'Zdjęcie z wydarzenia',
+            authorName: resolvedAuthorName && resolvedAuthorName.trim() !== '' ? resolvedAuthorName : 'Gość',
+            authorAvatar: resolvedAuthorAvatar,
+            likes: item.likes || 0,
+            isLiked: likedItems.includes(String(item.id)),
+            comments: item.comments || [],
+          };
+        });
         setMediaItems(fetchedItems);
       }
     } catch (err) {
