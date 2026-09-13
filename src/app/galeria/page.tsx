@@ -38,29 +38,43 @@ const generateVideoThumbnail = (file: File): Promise<string> => {
     const video = document.createElement('video');
     const videoUrl = URL.createObjectURL(file);
 
-    video.preload = 'metadata';
+    video.preload = 'auto';
     video.src = videoUrl;
     video.muted = true;
     video.playsInline = true;
-    video.autoplay = false;
+    video.load();
 
+    // Dla urządzeń typu iPhone/iOS zwiększamy czas oczekiwania na załadowanie klatki
     video.onloadeddata = () => {
-      video.currentTime = 0.5;
+      setTimeout(() => {
+        video.currentTime = 1.0; // Przesunięcie na 1. sekundę wideo
+      }, 500);
     };
 
     video.onseeked = () => {
       const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 400;
-      canvas.height = video.videoHeight || 600;
+      canvas.width = video.videoWidth || 320;
+      canvas.height = video.videoHeight || 240;
 
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       }
 
-      const thumbUrl = canvas.toDataURL('image/jpeg', 0.7);
-      URL.revokeObjectURL(videoUrl);
-      resolve(thumbUrl);
+      try {
+        const thumbUrl = canvas.toDataURL('image/jpeg', 0.7);
+        URL.revokeObjectURL(videoUrl);
+        
+        // Zabezpieczenie przed pustym obrazem na iOS
+        if (thumbUrl === 'data:,') {
+          throw new Error('Pusta miniatura');
+        }
+        
+        resolve(thumbUrl);
+      } catch (err) {
+        URL.revokeObjectURL(videoUrl);
+        reject(err);
+      }
     };
 
     video.onerror = (err) => {
