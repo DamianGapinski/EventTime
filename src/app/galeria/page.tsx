@@ -125,8 +125,7 @@ export default function GaleriaPage() {
   const navLinks = [
     { href: '/', icon: Home, label: 'Home' },
     { href: '/galeria', icon: GalleryIcon, label: 'Galeria' },
-    { href: '/games', icon: Gamepad2, label: 'Gry' },
-    { href: '/contact', icon: Mail, label: 'Kontakt' },
+   
   ];
 
   useEffect(() => {
