@@ -7,9 +7,9 @@ export default function Home() {
   const [isNameModalOpen, setIsNameModalOpen] = useState(false);
   const [tempNameInput, setTempNameInput] = useState('');
   const [userName, setUserName] = useState('');
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
-    // Sprawdzamy lokalną pamięć przeglądarki oraz unikalny token identyfikujący urządzenie/przeglądarkę
     let token = localStorage.getItem('app_browser_token');
     if (!token) {
       token = crypto.randomUUID();
@@ -31,13 +31,14 @@ export default function Home() {
 
     const trimmedName = tempNameInput.trim();
     
-    // Zapisujemy pod kluczami używanymi w całej aplikacji, żeby imię było powiązane z sesją
     localStorage.setItem('userName', trimmedName);
     localStorage.setItem('gallery_user_name', trimmedName);
     
     setUserName(trimmedName);
     setIsNameModalOpen(false);
   };
+
+  const firstLetter = userName ? userName.charAt(0).toUpperCase() : '?';
 
   return (
     <>
@@ -65,18 +66,70 @@ export default function Home() {
         </div>
       )}
 
+      {/* Profil w prawym górnym rogu */}
+      {userName && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+        }}>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: isExpanded ? 'flex-start' : 'center',
+              gap: '10px',
+              background: '#1a1a1a',
+              color: '#fff',
+              border: '2px solid #0070f3',
+              borderRadius: isExpanded ? '16px' : '50%',
+              width: isExpanded ? 'auto' : '45px',
+              height: '45px',
+              padding: isExpanded ? '0 16px 0 8px' : '0',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+            }}
+            title="Kliknij, aby zobaczyć imię"
+          >
+            <div style={{
+              minWidth: '31px',
+              height: '31px',
+              borderRadius: '50%',
+              background: '#0070f3',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 'bold',
+              fontSize: '16px',
+            }}>
+              {firstLetter}
+            </div>
+            {isExpanded && (
+              <span style={{
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#fff',
+              }}>
+                Witaj, <strong style={{ color: '#38bdf8' }}>{userName}</strong>!
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
       <header>
         <h1><strong>Damian & Viktoria</strong><br/><br/> Uwiecznij wszystkie chwile</h1>
       </header>
       <main>
-        
-        {userName && (
-          <div style={{ textAlign: 'center', margin: '10px 0', color: '#888', fontSize: '14px' }}>
-            Witaj, <strong style={{ color: '#0070f3' }}>{userName}</strong>!
-          </div>
-        )}
-        
-        <div style={{ textAlign: 'center', margin: '20px 0' }}>
+        <div style={{ textAlign: 'center', margin: '30px 0' }}>
           <Link href="/galeria" style={{ padding: '12px 24px', background: '#0070f3', color: '#fff', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold' }}>
             Przejdź do galerii
           </Link>
