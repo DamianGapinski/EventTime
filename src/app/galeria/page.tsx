@@ -105,11 +105,7 @@ export default function GaleriaPage() {
   const [uploadStatusText, setUploadStatusText] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Profile stan
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [tempName, setTempName] = useState('');
-  const [tempAvatar, setTempAvatar] = useState('');
 
   const activeVideoRef = useRef<HTMLVideoElement | null>(null);
   const pathname = usePathname();
@@ -127,7 +123,7 @@ export default function GaleriaPage() {
       token = crypto.randomUUID();
       localStorage.setItem('app_browser_token', token);
     }
-    const savedName = localStorage.getItem('gallery_user_name') || localStorage.getItem('app_user_name');
+    const savedName = localStorage.getItem('gallery_user_name') || localStorage.getItem('userName');
     const savedAvatar = localStorage.getItem('app_user_avatar');
 
     if (savedName) {
@@ -248,7 +244,7 @@ export default function GaleriaPage() {
         }
 
         setUploadStatusText(`Zapisywanie w bazie ${currentFileIndex}/${totalFiles}...`);
-        const currentAuthorName = localStorage.getItem('gallery_user_name') || profile?.name || 'Gość';
+        const currentAuthorName = localStorage.getItem('gallery_user_name') || localStorage.getItem('userName') || profile?.name || 'Gość';
         const { error: dbError } = await supabase.from('media').insert([
           {
             url: uploadData.publicUrl,
@@ -327,7 +323,7 @@ export default function GaleriaPage() {
     e.preventDefault();
     if (!newCommentText.trim() || !selectedMedia) return;
 
-    const currentAuthorName = localStorage.getItem('gallery_user_name') || profile?.name || 'Gość';
+    const currentAuthorName = localStorage.getItem('gallery_user_name') || localStorage.getItem('userName') || profile?.name || 'Gość';
     const newComment: Comment = {
       id: Date.now().toString(),
       text: newCommentText.trim(),
@@ -371,21 +367,6 @@ export default function GaleriaPage() {
       <div className="gallery-container">
         <div className="gallery-header">
           <h1>Galeria Wspomnień</h1>
-          
-          <div className="flex items-center gap-3 mb-4">
-            {profile && (
-              <div className="flex items-center gap-2 bg-neutral-800 px-3 py-1.5 rounded-full border border-neutral-700">
-                {profile.avatarUrl ? (
-                  <img src={profile.avatarUrl} alt="Avatar" className="w-6 h-6 rounded-full object-cover" />
-                ) : (
-                  <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-xs text-white">
-                    {profile.name[0]?.toUpperCase()}
-                  </div>
-                )}
-                <span className="text-sm font-medium text-white">{profile.name}</span>
-              </div>
-            )}
-          </div>
 
           <section className="upload-section flex flex-col items-center gap-2">
             <label className="upload-button cursor-pointer">
