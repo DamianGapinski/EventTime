@@ -987,7 +987,7 @@ nav ul li{
   position: fixed;
   top: 20px;
   right: 20px;
-  z-Index: 1000;
+  z-Index: 2000;
   display: flex;
   align-items: center;
   width: 50px !important;
