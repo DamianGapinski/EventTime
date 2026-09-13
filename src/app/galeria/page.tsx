@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, ChangeEvent, FormEvent } from 'react';
+import { useState, useEffect, useRef, ChangeEvent } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -44,10 +44,9 @@ const generateVideoThumbnail = (file: File): Promise<string> => {
     video.playsInline = true;
     video.load();
 
-    // Dla urządzeń typu iPhone/iOS zwiększamy czas oczekiwania na załadowanie klatki
     video.onloadeddata = () => {
       setTimeout(() => {
-        video.currentTime = 1.0; // Przesunięcie na 1. sekundę wideo
+        video.currentTime = 1.0;
       }, 500);
     };
 
@@ -65,7 +64,6 @@ const generateVideoThumbnail = (file: File): Promise<string> => {
         const thumbUrl = canvas.toDataURL('image/jpeg', 0.7);
         URL.revokeObjectURL(videoUrl);
         
-        // Zabezpieczenie przed pustym obrazem na iOS
         if (thumbUrl === 'data:,') {
           throw new Error('Pusta miniatura');
         }
@@ -420,20 +418,20 @@ export default function GaleriaPage() {
                     onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
                   />
                 ) : (
-  <div className="video-thumb-container">
-    <video
-      src={`${item.src}#t=0.001`}
-      preload="metadata"
-      muted
-      playsInline
-      className="gallery-thumb object-cover"
-      onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
-    />
-    <div className="play-overlay">
-      <span className="icon">▶</span>
-    </div>
-  </div>
-)}
+                  <div className="video-thumb-container">
+                    <video
+                      src={`${item.src}#t=0.001`}
+                      preload="metadata"
+                      muted
+                      playsInline
+                      className="gallery-thumb object-cover"
+                      onError={() => setErrorImages((prev) => ({ ...prev, [item.id]: true }))}
+                    />
+                    <div className="play-overlay">
+                      <span className="icon">▶</span>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
         </div>
@@ -484,9 +482,9 @@ export default function GaleriaPage() {
               {selectedMedia.authorAvatar ? (
                 <img src={selectedMedia.authorAvatar} alt="Avatar" className="author-avatar object-cover" />
               ) : (
-                <div className="author-avatar">{(selectedMedia.authorName || 'D')[0].toUpperCase()}</div>
+                <div className="author-avatar">{(selectedMedia.authorName || 'Gość')[0].toUpperCase()}</div>
               )}
-              <span className="author-name">{selectedMedia.authorName || 'Damian'}</span>
+              <span className="author-name">{selectedMedia.authorName || 'Gość'}</span>
             </div>
 
             <div className="reel-actions">
