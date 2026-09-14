@@ -201,6 +201,17 @@ export default function GaleriaPage() {
   };
 
   useEffect(() => {
+    if (selectedMedia) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedMedia]);
+
+  useEffect(() => {
     let timer: NodeJS.Timeout;
     if (selectedMedia && isSlideshowActive) {
       if (selectedMedia.type === 'image') {
@@ -455,16 +466,26 @@ export default function GaleriaPage() {
           <div
             className="reel-modal-overlay"
             onTouchStart={(e) => {
-              (e.currentTarget as HTMLElement & { touchStartX?: number }).touchStartX = e.touches[0].clientX;
+              // Rejestrujemy pozycję tylko wtedy, gdy dotknięto ekranu jednym palcem
+              if (e.touches.length === 1) {
+                (e.currentTarget as HTMLElement & { touchStartX?: number }).touchStartX = e.touches[0].clientX;
+              } else {
+                // Jeśli palców jest więcej (np. przybliżanie), kasujemy start, żeby zignorować gest
+                (e.currentTarget as HTMLElement & { touchStartX?: number }).touchStartX = undefined;
+              }
             }}
             onTouchEnd={(e) => {
               const target = e.currentTarget as HTMLElement & { touchStartX?: number };
               const startX = target.touchStartX;
-              if (startX === undefined) return;
+              
+              // Jeśli rozpoczęto dotyk wieloma palcami, nie zmieniamy slajdu
+              if (startX === undefined || e.changedTouches.length > 1) return;
 
               const diffX = startX - e.changedTouches[0].clientX;
               if (diffX > 50) nextSlide();
               else if (diffX < -50) prevSlide();
+              
+              target.touchStartX = undefined;
             }}
           >
             <button className="reel-close-btn" onClick={closeModal}>✕</button>
