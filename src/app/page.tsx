@@ -92,16 +92,7 @@ export default function Home() {
           </Link>
         </div>
       </header>
-      <main>
-        
-
-        <ol>
-          <li><h3>1. Zrób lub dodaj zdjęcie/film z galerii</h3></li>
-          <li><h3>2. Podziel się pięknymi chwilami</h3></li>
-          <li><h3>3. Przeglądaj wszystkie piękne chwile</h3></li>
-          <li><h3>4. Lajkuj i komentuj zdjęcia/filmy innych użytkowników</h3></li>
-        </ol>
-      </main>
+      
     </>
   );
 }
