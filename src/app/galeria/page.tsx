@@ -82,29 +82,6 @@ const generateVideoThumbnail = (file: File): Promise<string> => {
   });
 };
 
-const VersionBadge = () => {
-  const commitHash = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA 
-    ? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA.substring(0, 7) 
-    : 'dev-local';
-
-  return (
-    <div style={{
-      position: 'fixed',
-      bottom: '80px',
-      right: '12px',
-      background: 'rgba(0, 0, 0, 0.75)',
-      color: '#fff',
-      padding: '4px 8px',
-      fontSize: '11px',
-      borderRadius: '4px',
-      zIndex: 9999,
-      pointerEvents: 'none',
-      fontFamily: 'monospace',
-    }}>
-      
-    </div>
-  );
-};
 
 export default function GaleriaPage() {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -582,7 +559,7 @@ export default function GaleriaPage() {
         )}
       </div>
 
-      <VersionBadge />
+      
 
       <div className="scroll-to-top-wrapper">
         <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="scroll-to-top-btn">
