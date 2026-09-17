@@ -101,7 +101,7 @@ const VersionBadge = () => {
       pointerEvents: 'none',
       fontFamily: 'monospace',
     }}>
-      v: {commitHash}
+      
     </div>
   );
 };
